@@ -201,7 +201,7 @@ def explain_changes_in_totals(
         sf_avg.final_size = final_size
         sp = SlicerPair(sf_size, sf_avg)
         sp.plot = (
-            lambda plot_is_static=True, width=2000, height=500: plot_split_segments(
+            lambda plot_is_static=False, width=2000, height=500: plot_split_segments(
                 sp.s1,
                 sp.s2,
                 plot_is_static=plot_is_static,
@@ -232,7 +232,7 @@ def explain_changes_in_totals(
         sf.pre_total = df1[total_name].sum()
         sf.post_total = df2[total_name].sum()
 
-        sf.plot = lambda plot_is_static=True, width=1000, height=1000: plot_waterfall(
+        sf.plot = lambda plot_is_static=False, width=1000, height=1000: plot_waterfall(
             sf, plot_is_static=plot_is_static, width=width, height=height
         )
         sf.task = "changes in totals"
@@ -304,7 +304,7 @@ def explain_levels(
         s["total"] += average * s["seg_size"]
     # print(average)
     sf.reg.intercept_ = average
-    sf.plot = lambda plot_is_static=True, width=2000, height=500: plot_segments(
+    sf.plot = lambda plot_is_static=False, width=2000, height=500: plot_segments(
         sf, plot_is_static=plot_is_static, width=width, height=height
     )
     sf.task = "levels"
