@@ -86,6 +86,10 @@ def sparse_dummy_matrix(
     else:
         assert force_dim in dim_df.columns
         dims = [c for c in dim_df.columns if c != force_dim]
+
+    # drop dimensions with only one value, for clarity
+    dims = [d for d in dims  if len(dim_df[d].unique()) > 1]
+
     defs = []
     mats = []
     dims_range_min = min(len(dims), max(1, min_depth))
