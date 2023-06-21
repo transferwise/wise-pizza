@@ -11,7 +11,7 @@ pio.templates.default = "plotly_white"
 
 import numpy as np
 import pandas as pd
-from IPython.display import Image
+from IPython.display import Image, display
 
 
 def plot_split_segments(
@@ -291,16 +291,16 @@ def plot_waterfall(
         marker_color="#ff685f",
     )
 
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_yaxes=False,
-        subplot_titles=["", "Normalised difference in averages"],
-    )
+    fig = go.Figure()
+    fig2 = go.Figure()
 
-    fig.add_trace(trace1, 1, 1)
-    fig.add_trace(trace2, 2, 1)
-    fig["layout"]["yaxis2"].update(autorange="reversed")
+    fig.add_trace(trace1)
+    fig.update_layout(title="Segments contributing most to the change")
+    fig2.add_trace(trace2)
+    fig2["layout"]["yaxis"].update(autorange="reversed")
+    fig2.update_layout(title="Normalised difference in average")
+
+    fig2.update_layout(width=width, height=height)
 
     fig.update_layout(
         title="Segments contributing most to the change",
@@ -311,8 +311,11 @@ def plot_waterfall(
     if plot_is_static:
         # Convert the figure to a static image
         image_bytes = to_image(fig, format="png", scale=2)
+        image_bytes2 = to_image(fig2, format="png", scale=2)
 
         # Display the static image in the Jupyter notebook
-        return Image(image_bytes, width=width, height=height)
+        display(Image(image_bytes, width=width, height=height))
+        display(Image(image_bytes2, width=width, height=height))
     else:
         fig.show()
+        fig2.show()
