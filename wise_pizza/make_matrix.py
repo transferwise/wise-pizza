@@ -1,31 +1,53 @@
 import itertools
-from typing import Optional
+from typing import Optional, List, Dict
 
 import numpy as np
+import scipy
 from tqdm import tqdm
 import pandas as pd
 from scipy.sparse import csc_matrix, hstack
 
 
-def join_to_sparse(dim_df: pd.DataFrame, this_df: pd.DataFrame, verbose=0):
-    col_names = []
+def join_to_sparse(dim_df: pd.DataFrame, dim_name: str, verbose=0):
+    values = sorted(dim_df[dim_name].unique())
+
+    # create an "eye" dataframe
+    ext_df = pd.DataFrame(data=np.eye(len(values)), columns=values)
+    ext_df[dim_name] = values
+
+    join_df = pd.merge(dim_df, ext_df, on=[dim_name])
+    join_df = join_df.sort_values(list(dim_df.columns))
+    vals = csc_matrix(join_df[values].values)
+    if verbose > 0:
+        print(values, vals.shape)
+    return vals, values
+
+
+def segment_defs(dim_df: pd.DataFrame, used_dims, verbose=0) -> List[Dict[str, str]]:
     col_defs = []
-    ext_df = this_df.copy()
-    mat = np.eye(len(this_df))
-    these_dims = list(this_df.columns)
+    this_df = dim_df[used_dims].drop_duplicates().reset_index(drop=True)
     # create an "eye" dataframe on the unique reduced dimensions
     for i, vals in enumerate(this_df.itertuples(index=False)):
-        col_name = "_".join(map(str, vals))
-        col_names.append(col_name)
-        col_defs.append(dict(zip(these_dims, vals)))
-        ext_df[col_name] = mat[i]
-    dim_df_columns = list(dim_df.columns)
-    join_df = pd.merge(dim_df, ext_df, on=these_dims)
-    join_df = join_df.sort_values(dim_df_columns)
-    vals = csc_matrix(join_df[col_names].values)
+        col_defs.append(dict(zip(used_dims, vals)))
+
     if verbose > 0:
-        print(these_dims, vals.shape)
-    return vals, col_defs
+        print(used_dims, len(col_defs))
+    return col_defs
+
+
+def construct_dummies(
+    segment_defs: List[Dict[str, str]], cache: Dict[str, Dict[str, np.ndarray]]
+) -> scipy.sparse.csc_matrix:
+    dummies = []
+    for sgdf in segment_defs:
+        tmp = None
+        for k, v in sgdf.items():
+            if tmp is None:
+                tmp = cache[k][v]
+            else:
+                tmp = tmp.multiply(cache[k][v])
+        dummies.append(tmp)
+    return hstack(dummies)
 
 
 # This approach was way slower than the join one; keeping it here for reference :)
@@ -88,13 +110,20 @@ def sparse_dummy_matrix(
         dims = [c for c in dim_df.columns if c != force_dim]
 
     # drop dimensions with only one value, for clarity
-    dims = [d for d in dims  if len(dim_df[d].unique()) > 1]
+    dims = [d for d in dims if len(dim_df[d].unique()) > 1]
 
     defs = []
     mats = []
     dims_range_min = min(len(dims), max(1, min_depth))
     dims_range_max = min(len(dims) + 1, max_depth + 1)
     dims_range = range(dims_range_min, dims_range_max)
+
+    # first pass: generate single-dim dummies
+    dummy_cache = {}
+    for d in dim_df.columns:
+        this_mat, these_defs = join_to_sparse(dim_df, d, verbose=verbose)
+        dummy_cache[d] = {this_def: this_mat[:, i : i + 1] for i, this_def in enumerate(these_defs)}
+
     for num_dims in tqdm(dims_range) if verbose else dims_range:
         for these_dims in itertools.combinations(dims, num_dims):
             if num_dims == 1 and these_dims[0] == "Change from":
@@ -103,8 +132,9 @@ def sparse_dummy_matrix(
                 used_dims = list(these_dims)
             else:
                 used_dims = [force_dim] + list(these_dims)
-            this_df = dim_df[used_dims].drop_duplicates().reset_index(drop=True)
-            this_mat, these_defs = join_to_sparse(dim_df, this_df, verbose=verbose)
+
+            these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
+            this_mat = construct_dummies(these_defs, dummy_cache)
             mats.append(this_mat)
             defs += these_defs
     mat = hstack(mats)
