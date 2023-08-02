@@ -131,6 +131,7 @@ def plot_segments(
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
+    return_fig: bool = False
 ):
     """
     Plot segments for explain_levels
@@ -210,7 +211,10 @@ def plot_segments(
             width=width + len(sf.segment_labels) * 30,
         )
     else:
-        fig.show()
+        if return_fig:
+            return fig
+        else:
+            fig.show()
 
 
 def waterfall_args(sf: SliceFinder):
