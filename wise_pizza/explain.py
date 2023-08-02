@@ -304,8 +304,8 @@ def explain_levels(
         s["total"] += average * s["seg_size"]
     # print(average)
     sf.reg.intercept_ = average
-    sf.plot = lambda plot_is_static=False, width=2000, height=500: plot_segments(
-        sf, plot_is_static=plot_is_static, width=width, height=height
+    sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False: plot_segments(
+        sf, plot_is_static=plot_is_static, width=width, height=height, return_fig=return_fig
     )
     sf.task = "levels"
     return sf
