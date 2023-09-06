@@ -74,9 +74,9 @@ def plot_split_segments(
         shared_yaxes=True,
         subplot_titles=[
             "Impact of size chgs on overall total",
-            "Normalised difference in sizes",
+            "Segment sizes",
             "Impact of average chgs on overall total",
-            "Normalised difference in averages",
+            "Segment averages",
         ],
     )
 
@@ -177,7 +177,7 @@ def plot_segments(
         shared_yaxes=True,
         subplot_titles=[
             "Impact on overall total",
-            "Simple segment averages",
+            "Segment averages",
             "Segment sizes",
         ],
     )
@@ -302,7 +302,7 @@ def plot_waterfall(
     fig.update_layout(title="Segments contributing most to the change")
     fig2.add_trace(trace2)
     fig2["layout"]["yaxis"].update(autorange="reversed")
-    fig2.update_layout(title="Normalised difference in average")
+    fig2.update_layout(title="Segment averages")
 
     fig2.update_layout(width=width, height=height)
 
