@@ -1,5 +1,5 @@
 import itertools
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Sequence
 
 import numpy as np
 import scipy
@@ -133,9 +133,42 @@ def sparse_dummy_matrix(
             else:
                 used_dims = [force_dim] + list(these_dims)
 
-            these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
-            this_mat = construct_dummies(these_defs, dummy_cache)
+            segment_constraints = segment_defs_new(dims_dict, used_dims)
+            this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache)
+
+            # these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
+            # this_mat = construct_dummies(these_defs, dummy_cache)
             mats.append(this_mat)
             defs += these_defs
     mat = hstack(mats)
     return mat, defs
+
+
+def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims) -> List[Dict[str, str]]:
+    if len(used_dims) == 1:
+        return np.array(dims_dict[used_dims[0]]).reshape(-1, 1)
+    else:
+        tmp = segment_defs_new(dims_dict, used_dims[:-1])
+        this_dim_values = np.array(dims_dict[used_dims[-1]])
+        repeated_values = np.tile(this_dim_values, len(tmp)).reshape(-1, 1)
+        pre_out = np.tile(tmp, (len(this_dim_values), 1))
+        out = np.concatenate(pre_out, repeated_values)
+        return out
+
+
+def construct_dummies_new(
+    used_dims: List[str], segment_defs: np.ndarray, cache: Dict[str, Dict[str, np.ndarray]]
+) -> scipy.sparse.csc_matrix:
+    dummies = []
+    segments = []
+    for sgdf in segment_defs:
+        tmp = None
+        for i, d in enumerate(used_dims):
+            if tmp is None:
+                tmp = cache[d][sgdf[i]]
+            else:
+                tmp = tmp.multiply(cache[d][sgdf[i]])
+        if tmp.sum() > 0:
+            dummies.append(tmp)
+            segments.append(dict(zip(used_dims, sgdf)))
+    return hstack(dummies), segments
