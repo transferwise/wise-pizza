@@ -200,14 +200,12 @@ def explain_changes_in_totals(
         sf_size.final_size = final_size
         sf_avg.final_size = final_size
         sp = SlicerPair(sf_size, sf_avg)
-        sp.plot = (
-            lambda plot_is_static=False, width=2000, height=500: plot_split_segments(
-                sp.s1,
-                sp.s2,
-                plot_is_static=plot_is_static,
-                width=width,
-                height=height,
-            )
+        sp.plot = lambda plot_is_static=False, width=2000, height=500: plot_split_segments(
+            sp.s1,
+            sp.s2,
+            plot_is_static=plot_is_static,
+            width=width,
+            height=height,
         )
         return sp
 
@@ -266,8 +264,7 @@ def explain_levels(
     @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
     @param verbose: If set to a truish value, lots of debug info is printed to console
     @param force_add_up: Force the contributions of chosen segments to add up to zero
-    @param constrain_signs: Whether to constrain weights of segments to have the same
-    sign as naive segment averages
+    @param constrain_signs: Whether to constrain weights of segments to have the same sign as naive segment averages
     @return: A fitted object
     """
     df = copy.copy(df)
