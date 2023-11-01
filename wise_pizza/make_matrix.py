@@ -124,7 +124,12 @@ def sparse_dummy_matrix(
         this_mat, these_defs = join_to_sparse(dim_df, d, verbose=verbose)
         dummy_cache[d] = {this_def: this_mat[:, i : i + 1] for i, this_def in enumerate(these_defs)}
 
+    # TODO: maps dimension names to dimension values
+    dims_dict = {dim: dim_df[dim].unique() for dim in dim_df.columns}
+
+    # Go over all possible depths
     for num_dims in tqdm(dims_range) if verbose else dims_range:
+        # for each depth, sample the possible dimension combinations
         for these_dims in itertools.combinations(dims, num_dims):
             if num_dims == 1 and these_dims[0] == "Change from":
                 continue
@@ -144,15 +149,16 @@ def sparse_dummy_matrix(
     return mat, defs
 
 
-def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims) -> List[Dict[str, str]]:
+def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> List[Dict[str, str]]:
+    # Look at all possible combinations of dimension values for the chosen dimensions
     if len(used_dims) == 1:
         return np.array(dims_dict[used_dims[0]]).reshape(-1, 1)
     else:
         tmp = segment_defs_new(dims_dict, used_dims[:-1])
         this_dim_values = np.array(dims_dict[used_dims[-1]])
-        repeated_values = np.tile(this_dim_values, len(tmp)).reshape(-1, 1)
+        repeated_values = np.tile(this_dim_values.reshape(-1, 1), len(tmp)).reshape(-1, 1)
         pre_out = np.tile(tmp, (len(this_dim_values), 1))
-        out = np.concatenate(pre_out, repeated_values)
+        out = np.concatenate([pre_out, repeated_values], axis=1)
         return out
 
 
