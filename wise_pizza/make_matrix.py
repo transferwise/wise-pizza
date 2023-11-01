@@ -1,5 +1,6 @@
 import itertools
 from typing import Optional, List, Dict, Sequence
+from collections import defaultdict
 
 import numpy as np
 import scipy
@@ -99,6 +100,7 @@ def sparse_dummy_matrix(
     max_depth: int = 2,
     verbose=0,
     force_dim: Optional[str] = None,
+    clusters: Optional[Dict[str, Sequence[str]]] = None,
 ):
     # generate a sparse dummy matrix based on all the combinations
     # TODO: do a  nested sparse regression fit to form groups of dim values, pos, neg, null
@@ -108,6 +110,9 @@ def sparse_dummy_matrix(
     else:
         assert force_dim in dim_df.columns
         dims = [c for c in dim_df.columns if c != force_dim]
+
+    if clusters is None:
+        clusters = defaultdict(list)
 
     # drop dimensions with only one value, for clarity
     dims = [d for d in dims if len(dim_df[d].unique()) > 1]
@@ -125,7 +130,7 @@ def sparse_dummy_matrix(
         dummy_cache[d] = {this_def: this_mat[:, i : i + 1] for i, this_def in enumerate(these_defs)}
 
     # TODO: maps dimension names to dimension values
-    dims_dict = {dim: dim_df[dim].unique() for dim in dim_df.columns}
+    dims_dict = {dim: list(dim_df[dim].unique()) + list(clusters[dim]) for dim in dim_df.columns}
 
     # Go over all possible depths
     for num_dims in tqdm(dims_range) if verbose else dims_range:
@@ -170,10 +175,22 @@ def construct_dummies_new(
     for sgdf in segment_defs:
         tmp = None
         for i, d in enumerate(used_dims):
-            if tmp is None:
-                tmp = cache[d][sgdf[i]]
+            if isinstance(sgdf[i], str) and "@@" in sgdf[i]:  # a group of multiple values from that dim
+                sub_values = sgdf[i].split("@@")
+                this_dummy = None
+                for val in sub_values:
+                    if this_dummy is None:
+                        this_dummy = cache[d][val]
+                    else:
+                        this_dummy = this_dummy.multiply(cache[d][val])
+                sgdf[i] = sgdf[i].replace("@@", ",")
             else:
-                tmp = tmp.multiply(cache[d][sgdf[i]])
+                this_dummy = cache[d][sgdf[i]]
+
+            if tmp is None:
+                tmp = this_dummy
+            else:
+                tmp = tmp.multiply(this_dummy)
         if tmp.sum() > 0:
             dummies.append(tmp)
             segments.append(dict(zip(used_dims, sgdf)))

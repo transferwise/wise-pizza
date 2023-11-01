@@ -19,33 +19,23 @@ def guided_kmeans(X: np.ndarray, power_transform: bool = True) -> np.ndarray:
 
     if power_transform:
         if len(X[X > 0] > 1):
-            X[X > 0] = (
-                PowerTransformer(standardize=False)
-                .fit_transform(X[X > 0].reshape(-1, 1))
-                .reshape(-1)
-            )
+            X[X > 0] = PowerTransformer(standardize=False).fit_transform(X[X > 0].reshape(-1, 1)).reshape(-1)
         if len(X[X < 0] > 1):
-            X[X < 0] = (
-                -PowerTransformer(standardize=False)
-                .fit_transform(-X[X < 0].reshape(-1, 1))
-                .reshape(-1)
-            )
+            X[X < 0] = -PowerTransformer(standardize=False).fit_transform(-X[X < 0].reshape(-1, 1)).reshape(-1)
 
     best_score = -1
     best_labels = None
     # If we allow 2 clusters, it almost always just splits positive vs negative - boring!
-    for n_clusters in range(3, 10):
-        cluster_labels = KMeans(
-            n_clusters=n_clusters, init="k-means++", n_init=10
-        ).fit_predict(X)
+    for n_clusters in range(3, int(len(X) / 2) + 1):
+        cluster_labels = KMeans(n_clusters=n_clusters, init="k-means++", n_init=10).fit_predict(X)
         score = silhouette_score(X, cluster_labels)
-        print(n_clusters, score)
+        # print(n_clusters, score)
         if score > best_score:
             best_score = score
             best_labels = cluster_labels
             best_n = n_clusters
 
-    print(best_n)
+    # print(best_n)
     return best_labels, X
 
 
