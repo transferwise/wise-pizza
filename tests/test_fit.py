@@ -129,6 +129,7 @@ def test_categorical():
     for s in sf.segments:
         print(s)
     print(sf.summary())
+    print(sf.relevant_cluster_names)
     print("yay!")
 
 

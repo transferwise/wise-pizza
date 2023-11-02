@@ -60,6 +60,7 @@ class SliceFinder:
             verbose=self.verbose,
             force_dim=force_dim,
             clusters=clusters,
+            cluster_names = self.cluster_names
         )
 
         # try naive pre-filter
@@ -155,6 +156,7 @@ class SliceFinder:
         # While we still have weights and totals as part of the dataframe, let's produce clusters
         # of dimension values with similar outcomes
         clusters = defaultdict(list)
+        self.cluster_names = {}
         if cluster_values:
             for dim in dims:
                 if len(dim_df[dim].unique()) >= 6:  # otherwise what's the point in clustering?
@@ -165,7 +167,11 @@ class SliceFinder:
                         grouped_df[["cluster", dim]].groupby("cluster").agg({dim: lambda x: "@@".join(x)}).values
                     )
                     # filter out clusters with only one element
-                    clusters[dim] = [c for c in pre_clusters.reshape(-1) if "@@" in c]
+                    these_clusters = [c for c in pre_clusters.reshape(-1) if "@@" in c]
+                    # create short cluster names
+                    for i, c in enumerate(these_clusters):
+                        self.cluster_names[f"{dim}_cluster_{i+1}"] = c
+                    clusters[dim] = [c for c in self.cluster_names.keys() if c.startswith(dim)]
         dim_df = dim_df[dims]
 
         # lazy calculation of the dummy matrix (calculation can be very slow)
@@ -238,6 +244,14 @@ class SliceFinder:
     def summary(self):
         return _summary(self)
 
+    @property
+    def relevant_cluster_names(self):
+        relevant_clusters = {}
+        for s in self.segments:
+            for c in s["segment"].values():
+                if c in self.cluster_names:
+                    relevant_clusters[c] = self.cluster_names[c].replace("@@",", ")
+        return relevant_clusters
 
 class SlicerPair:
     def __init__(self, s1: SliceFinder, s2: SliceFinder):

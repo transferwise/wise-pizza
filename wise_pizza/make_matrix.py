@@ -101,6 +101,7 @@ def sparse_dummy_matrix(
     verbose=0,
     force_dim: Optional[str] = None,
     clusters: Optional[Dict[str, Sequence[str]]] = None,
+    cluster_names: Optional[Dict[str,str]] = None
 ):
     # generate a sparse dummy matrix based on all the combinations
     # TODO: do a  nested sparse regression fit to form groups of dim values, pos, neg, null
@@ -144,7 +145,7 @@ def sparse_dummy_matrix(
                 used_dims = [force_dim] + list(these_dims)
 
             segment_constraints = segment_defs_new(dims_dict, used_dims)
-            this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache)
+            this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache, cluster_names)
 
             # these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
             # this_mat = construct_dummies(these_defs, dummy_cache)
@@ -168,22 +169,22 @@ def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) 
 
 
 def construct_dummies_new(
-    used_dims: List[str], segment_defs: np.ndarray, cache: Dict[str, Dict[str, np.ndarray]]
+    used_dims: List[str],
+        segment_defs: np.ndarray,
+        cache: Dict[str, Dict[str, np.ndarray]],
+        cluster_names: Optional[Dict[str,str]] = None
 ) -> scipy.sparse.csc_matrix:
     dummies = []
     segments = []
     for sgdf in segment_defs:
         tmp = None
         for i, d in enumerate(used_dims):
-            if isinstance(sgdf[i], str) and "@@" in sgdf[i]:  # a group of multiple values from that dim
-                sub_values = sgdf[i].split("@@")
-                this_dummy = None
+            if isinstance(sgdf[i], str) and sgdf[i] not in cache[d]:  # a group of multiple values from that dim
+                sub_values = cluster_names[sgdf[i]].split("@@")
+                this_dummy = 0
                 for val in sub_values:
-                    if this_dummy is None:
-                        this_dummy = cache[d][val]
-                    else:
-                        this_dummy = this_dummy.multiply(cache[d][val])
-                sgdf[i] = sgdf[i].replace("@@", ",")
+                    this_dummy += cache[d][val]
+
             else:
                 this_dummy = cache[d][sgdf[i]]
 
