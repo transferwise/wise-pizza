@@ -9,6 +9,7 @@ from scipy.sparse import csc_matrix, diags
 from wise_pizza.find_alpha import clean_up_min_max, find_alpha
 from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import guided_kmeans
+from wise_pizza.preselect import HeuristicSelector
 
 
 def _summary(obj) -> str:
@@ -56,7 +57,7 @@ class SliceFinder:
         @return:
         """
 
-        self.X, self.col_defs = sparse_dummy_matrix(
+        X, col_defs = sparse_dummy_matrix(
             dim_df,
             min_depth=min_depth,
             max_depth=max_depth,
@@ -66,36 +67,10 @@ class SliceFinder:
             cluster_names=self.cluster_names,
             time_basis=time_basis,
         )
+
         # TODO: do naive pre-filter recursively
-        # try naive pre-filter
-        if self.X.shape[1] > max_cols:
-            chunk_size = int(max_cols / 2)
-            # TODO: filter by t-values instead of absolute discrepancies
-            seg_wgt = self.X.T @ self.weights
-            seg_avg = (self.X.T @ self.totals) / seg_wgt
-            avg = self.totals.sum() / self.weights.sum()
-
-            inds = []
-
-            delta = seg_avg - avg
-            unusual = np.argsort(np.abs(delta))
-            inds += list(unusual[-chunk_size:])
-
-            delta2 = delta * np.sqrt(seg_wgt)
-            unusual2 = np.argsort(np.abs(delta2))
-            inds += list(unusual2[-chunk_size:])
-
-            delta3 = delta * seg_wgt
-            unusual3 = np.argsort(np.abs(delta3))
-            inds += list(unusual3[-chunk_size:])
-
-            best = np.array(list(set(inds)))
-
-            self.X = self.X[:, best]
-            self.col_defs = [self.col_defs[i] for i in best]
-            # end naive pre-filter
-
-        return self.X, self.col_defs
+        sel = HeuristicSelector(max_cols=max_cols)
+        return sel(X, col_defs, weights=self.weights, totals=self.totals)
 
     def fit(
         self,
