@@ -6,12 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from wise_pizza.data_sources.synthetic import synthetic_data
-from wise_pizza.explain import (
-    explain_changes_in_average,
-    explain_changes_in_totals,
-    explain_levels,
-)
+from wise_pizza.data_sources.synthetic import synthetic_data, synthetic_ts_data
+from wise_pizza.explain import explain_changes_in_average, explain_changes_in_totals, explain_levels, explain_timeseries
 from wise_pizza.segment_data import SegmentData
 from wise_pizza.solver import solve_lasso, solve_lp
 
@@ -103,12 +99,8 @@ def size_to_one(
 
 
 def monthly_driver_data():
-    df = pd.read_csv(
-        os.path.join(os.path.dirname(__file__), "../data", "synth_data.csv")
-    )
-    return SegmentData(
-        data=df, dimensions=dims, segment_total=totals, segment_size=size
-    )
+    df = pd.read_csv(os.path.join(os.path.dirname(__file__), "../data", "synth_data.csv"))
+    return SegmentData(data=df, dimensions=dims, segment_total=totals, segment_size=size)
 
 
 def test_categorical():
@@ -158,6 +150,34 @@ def test_synthetic_template(nan_percent: float):
 
     # sf.plot()
     print("yay!")
+
+
+# @pytest.mark.parametrize("nan_percent", [0.0, 1.0])
+# def test_synthetic_ts_template(nan_percent: float):
+#     all_data = synthetic_ts_data(init_len=1000)
+#     data = all_data.data
+#     if nan_percent > 0:
+#         data = values_to_nan(data, nan_percent)
+#     sf = explain_timeseries(
+#         data,
+#         dims=all_data.dimensions,
+#         total_name=all_data.segment_total,
+#         time_name=all_data.time_col,
+#         size_name=all_data.segment_size,
+#         max_depth=2,
+#         min_segments=5,
+#         verbose=1,
+#         solver="lp",
+#     )
+#     print("***")
+#     for s in sf.segments:
+#         print(s)
+#
+#     assert abs(sf.segments[0]["coef"] - 300) < 2
+#     assert abs(sf.segments[1]["coef"] - 100) < 2
+#
+#     # sf.plot()
+#     print("yay!")
 
 
 @pytest.mark.parametrize(

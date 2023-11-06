@@ -9,6 +9,7 @@ warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall
 from wise_pizza.slicer import SliceFinder, SlicerPair
 from wise_pizza.utils import diff_dataset, prepare_df
+from wise_pizza.time import create_time_basis, strip_out_baseline
 
 
 def explain_changes_in_average(
@@ -118,7 +119,7 @@ def explain_changes_in_totals(
     how: str = "totals",
     force_add_up: bool = False,
     constrain_signs: bool = True,
-        cluster_values: bool=True,
+    cluster_values: bool = True,
     verbose: int = 0,
 ):
     """
@@ -256,7 +257,7 @@ def explain_levels(
     verbose=0,
     force_add_up: bool = False,
     constrain_signs: bool = True,
-    cluster_values: bool=True
+    cluster_values: bool = True,
 ):
     """
     Find segments whose average is most different from the global one
@@ -303,9 +304,95 @@ def explain_levels(
         verbose=verbose,
         force_add_up=force_add_up,
         constrain_signs=constrain_signs,
-        cluster_values=cluster_values
+        cluster_values=cluster_values,
     )
 
+    for s in sf.segments:
+        s["naive_avg"] += average
+        s["total"] += average * s["seg_size"]
+    # print(average)
+    sf.reg.intercept_ = average
+    sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False: plot_segments(
+        sf, plot_is_static=plot_is_static, width=width, height=height, return_fig=return_fig
+    )
+    sf.task = "levels"
+    return sf
+
+
+def explain_timeseries(
+    df: pd.DataFrame,
+    dims: List[str],
+    total_name: str,
+    time_name: str,
+    size_name: Optional[str] = None,
+    min_segments: int = 10,
+    max_segments: int = None,
+    min_depth: int = 1,
+    max_depth: int = 2,
+    solver="lasso",
+    verbose=0,
+    force_add_up: bool = False,
+    constrain_signs: bool = True,
+    cluster_values: bool = True,
+):
+    """
+    Find segments whose average is most different from the global one
+    @param df: Dataset
+    @param dims: List of discrete dimensions
+    @param total_name: Name of column that contains totals per segment
+    @param size_name: Name of column containing segment sizes
+    @param time_name: Name of column containing the time dimension
+    @param min_segments: Minimum number of segments to find
+    @param max_segments: Maximum number of segments to find, defaults to min_segments
+    @param min_depth: Minimum number of dimension to constrain in segment definition
+    @param max_depth: Maximum number of dimension to constrain in segment definition
+    @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
+    @param verbose: If set to a truish value, lots of debug info is printed to console
+    @param force_add_up: Force the contributions of chosen segments to add up to zero
+    @param constrain_signs: Whether to constrain weights of segments to have the same sign as naive segment averages
+    @param cluster_values In addition to single-value slices, consider slices that consist of a
+    group of segments from the same dimension with similar naive averages
+    @return: A fitted object
+    """
+    df = copy.copy(df)
+
+    # replace NaN values in numeric columns with zeros
+    # replace NaN values in categorical columns with the column name + "_unknown"
+    # Group by dims + [time_name]
+    df = prepare_df(df, dims, total_name=total_name, size_name=size_name, time_name=time_name)
+
+    if size_name is None:
+        size_name = "size"
+        df[size_name] = 1.0
+
+    # strip out constants and possibly linear trends for each dimension combination
+    baseline_dims = 1
+    time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims)
+    df = strip_out_baseline(df, basis=time_basis, strip_trends=False)
+
+    # we want to look for deviations from average value
+    average = df[total_name].sum() / df[size_name].sum()
+    df["_target"] = df[total_name] - df[size_name] * average
+
+    sf = SliceFinder()
+    sf.fit(
+        df[dims],
+        df["_target"],
+        time_col=df[time_name],
+        time_basis=time_basis,
+        weights=df[size_name],
+        min_segments=min_segments,
+        max_segments=max_segments,
+        min_depth=min_depth,
+        max_depth=max_depth,
+        solver=solver,
+        verbose=verbose,
+        force_add_up=force_add_up,
+        constrain_signs=constrain_signs,
+        cluster_values=cluster_values,
+    )
+
+    # TODO: insert back the normalized bits?
     for s in sf.segments:
         s["naive_avg"] += average
         s["total"] += average * s["seg_size"]

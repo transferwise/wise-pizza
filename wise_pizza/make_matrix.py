@@ -101,7 +101,8 @@ def sparse_dummy_matrix(
     verbose=0,
     force_dim: Optional[str] = None,
     clusters: Optional[Dict[str, Sequence[str]]] = None,
-    cluster_names: Optional[Dict[str,str]] = None
+    cluster_names: Optional[Dict[str, str]] = None,
+    time_basis: Optional[pd.DataFrame] = None,
 ):
     # generate a sparse dummy matrix based on all the combinations
     # TODO: do a  nested sparse regression fit to form groups of dim values, pos, neg, null
@@ -170,9 +171,9 @@ def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) 
 
 def construct_dummies_new(
     used_dims: List[str],
-        segment_defs: np.ndarray,
-        cache: Dict[str, Dict[str, np.ndarray]],
-        cluster_names: Optional[Dict[str,str]] = None
+    segment_defs: np.ndarray,
+    cache: Dict[str, Dict[str, np.ndarray]],
+    cluster_names: Optional[Dict[str, str]] = None,
 ) -> scipy.sparse.csc_matrix:
     dummies = []
     segments = []

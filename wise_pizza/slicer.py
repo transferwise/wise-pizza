@@ -42,6 +42,7 @@ class SliceFinder:
         max_cols: int = 300,
         force_dim: Optional[str] = None,
         clusters: Optional[Dict[str, Sequence[str]]] = None,
+        time_basis: Optional[pd.DataFrame] = None,
     ):
         """
         Function to initialize sparse matrix
@@ -50,6 +51,8 @@ class SliceFinder:
         @param max_depth: Maximum number of dimension to constrain in segment definition
         @param max_cols: Maxumum number of segments to consider
         @param force_dim: To add dim
+        @param clusters: groups of same-dimension values to be considered as candidate segments
+        @param time_basis: the set of time profiles to scale the candidate segments by
         @return:
         """
 
@@ -60,9 +63,10 @@ class SliceFinder:
             verbose=self.verbose,
             force_dim=force_dim,
             clusters=clusters,
-            cluster_names = self.cluster_names
+            cluster_names=self.cluster_names,
+            time_basis=time_basis,
         )
-
+        # TODO: do naive pre-filter recursively
         # try naive pre-filter
         if self.X.shape[1] > max_cols:
             chunk_size = int(max_cols / 2)
@@ -91,15 +95,15 @@ class SliceFinder:
             self.col_defs = [self.col_defs[i] for i in best]
             # end naive pre-filter
 
-        self.min_depth = min_depth
-        self.max_depth = max_depth
-        self.dims = list(dim_df.columns)
+        return self.X, self.col_defs
 
     def fit(
         self,
         dim_df: pd.DataFrame,
         totals: pd.Series,
         weights: pd.Series = None,
+        time_col: pd.Series = None,
+        time_basis: pd.DataFrame = None,
         min_segments: int = 10,
         max_segments: int = None,
         min_depth: int = 1,
@@ -139,17 +143,23 @@ class SliceFinder:
             weights = np.ones_like(totals)
         else:
             weights = np.array(weights).astype(np.float64)
+
         assert min(weights) >= 0
         assert np.sum(np.abs(totals[weights == 0])) == 0
 
         dims = list(dim_df.columns)
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
+        # Why do we do this?
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
+        if time_col is not None:
+            dim_df["__time"] = time_col
+
         dim_df = dim_df.sort_values(dims)
         dim_df = dim_df[dim_df["weights"] != 0]
+
         self.weights = dim_df["weights"].values
         self.totals = dim_df["totals"].values
 
@@ -172,7 +182,8 @@ class SliceFinder:
                     for i, c in enumerate(these_clusters):
                         self.cluster_names[f"{dim}_cluster_{i+1}"] = c
                     clusters[dim] = [c for c in self.cluster_names.keys() if c.startswith(dim)]
-        dim_df = dim_df[dims]
+
+        dim_df = dim_df[dims if time_col is None else dims + ["__time"]]
 
         # lazy calculation of the dummy matrix (calculation can be very slow)
         if (
@@ -181,7 +192,12 @@ class SliceFinder:
             or self.X is not None
             and len(dim_df) != self.X.shape[1]
         ):
-            self._init_mat(dim_df, min_depth, max_depth, force_dim=force_dim, clusters=clusters)
+            self.X, self.col_defs = self._init_mat(
+                dim_df, min_depth, max_depth, force_dim=force_dim, clusters=clusters, time_basis=time_basis
+            )
+            self.min_depth = min_depth
+            self.max_depth = max_depth
+            self.dims = list(dim_df.columns)
 
         Xw = csc_matrix(diags(self.weights) @ self.X)
 
@@ -250,8 +266,9 @@ class SliceFinder:
         for s in self.segments:
             for c in s["segment"].values():
                 if c in self.cluster_names:
-                    relevant_clusters[c] = self.cluster_names[c].replace("@@",", ")
+                    relevant_clusters[c] = self.cluster_names[c].replace("@@", ", ")
         return relevant_clusters
+
 
 class SlicerPair:
     def __init__(self, s1: SliceFinder, s2: SliceFinder):

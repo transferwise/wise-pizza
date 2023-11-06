@@ -120,9 +120,7 @@ def diff_dataset(
 
         if return_multiple:
             sd_size = SegmentData(
-                combined.rename(
-                    columns={"Change in totals": "Change from segment size"}
-                ),
+                combined.rename(columns={"Change in totals": "Change from segment size"}),
                 dimensions=dims,
                 segment_total="Change from segment size",
                 segment_size=weights,
@@ -139,9 +137,7 @@ def diff_dataset(
             combined["Change from"] = "Segment size"
             c2["Change from"] = "Segment average"
 
-            df = pd.concat([combined, c2])[
-                dims + [weights, "Change in totals", "Change from"]
-            ]
+            df = pd.concat([combined, c2])[dims + [weights, "Change in totals", "Change from"]]
             df_change_in_totals = np.array(df["Change in totals"], dtype=np.longdouble)
             combined_dtotals = np.array(combined["dtotals"], dtype=np.longdouble)
             df_change_in_totals_sum = np.nansum(df_change_in_totals)
@@ -164,9 +160,7 @@ def diff_dataset(
         combined[weights] = 1.0  # combined[totals + "_x"]
         combined[weights] = np.maximum(1.0, combined[weights])
         cols = (
-            dims
-            + ["Change in totals", totals + "_x", totals + "_y"]
-            + [c for c in combined.columns if "baseline" in c]
+            dims + ["Change in totals", totals + "_x", totals + "_y"] + [c for c in combined.columns if "baseline" in c]
         )
 
         return SegmentData(
@@ -178,7 +172,11 @@ def diff_dataset(
 
 
 def prepare_df(
-    df: pd.DataFrame, dims: str, size_name: str = None, total_name: str = "VOLUME"
+    df: pd.DataFrame,
+    dims: str,
+    size_name: Optional[str] = None,
+    total_name: str = "VOLUME",
+    time_name: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Takes a pandas dataframe and checks for missing values.
@@ -206,18 +204,78 @@ def prepare_df(
 
     # replace NaN values in categorical columns with the column name + "_unknown"
     object_columns = list(new_df[dims].select_dtypes("object").columns)
-    new_df[object_columns] = new_df[object_columns].fillna(
-        new_df[object_columns].apply(lambda x: x.name + "_unknown")
-    )
-    if size_name is not None:
-        new_df = (
-            new_df.groupby(by=dims, observed=True)[[total_name, size_name]]
-            .sum()
-            .reset_index()
-        )
-    else:
-        new_df = (
-            new_df.groupby(by=dims, observed=True)[[total_name]].sum().reset_index()
-        )
+    new_df[object_columns] = new_df[object_columns].fillna(new_df[object_columns].apply(lambda x: x.name + "_unknown"))
     new_df[object_columns] = new_df[object_columns].astype(str)
+
+    # Groupby all relevant dims to decrease the dataframe size, if possible
+    group_dims = dims if time_name is None else dims + [time_name]
+
+    if size_name is not None:
+        new_df = new_df.groupby(by=group_dims, observed=True)[[total_name, size_name]].sum().reset_index()
+    else:
+        new_df = new_df.groupby(by=group_dims, observed=True)[[total_name]].sum().reset_index()
+
     return new_df
+
+
+#
+# def prepare_time_df(
+#     df: pd.DataFrame,
+#     dims: str,
+#     total_name: str = "VOLUME",
+#     time_name: str = "TIME",
+#     size_name: str = None,
+# ) -> pd.DataFrame:
+#     """
+#     Takes a pandas dataframe and checks for missing values.
+#     If a column is numeric and contains missing values, replace them with zeros.
+#     If a column is categorical and contains missing values, replace them with the column name followed by "_unknown".
+#     Returns a new pandas dataframe.
+#     @param df: initial dataset
+#     @param dims: List of discrete dimensions
+#     @param size_name: Name of column containing segment sizes
+#     @param total_name: Name of column that contains totals per segment
+#     @return: prepared dataset
+#     """
+#
+#     # do the standard cleaning
+#     new_df = prepare_df(df, dims, total_name, size_name)
+#
+#     new_df[total_name] = new_df[total_name].apply(float)
+#     if
+#
+#     ptotals = (
+#         new_df[dims + [time_name, total_name]].pivot(columns=time_name, index=dims, values=[total_name]).fillna(0.0)
+#     )
+#     if size_name is not None:
+#         new_df[size_name] = new_df[size_name].apply(float)
+#
+#         psize = (
+#             new_df[dims + [time_name, size_name]]
+#             .pivot(columns=time_name, index=dims, values=[size_name])
+#             .apply(float)
+#             .fillna(0.0)
+#         )
+#         ptotals.values[psize.values == 0.0] = 0.0
+#
+#     # replace NaN values in numeric columns with zeros,
+#     # make sure that zero size implies zero total
+#     if size_name is not None:
+#         new_df[size_name] = new_df[size_name].apply(float)
+#         new_df[[size_name, total_name]] = new_df[[size_name, total_name]].fillna(0)
+#         new_df.loc[new_df[size_name] == 0, total_name] = 0
+#     else:
+#         new_df[[total_name]] = new_df[[total_name]].fillna(0)
+#
+#     # replace NaN values in categorical columns with the column name + "_unknown"
+#     object_columns = list(new_df[dims].select_dtypes("object").columns)
+#     new_df[object_columns] = new_df[object_columns].fillna(new_df[object_columns].apply(lambda x: x.name + "_unknown"))
+#
+#     if size_name is not None:
+#         new_df = new_df.groupby(by=dims, observed=True)[[total_name, size_name]].sum().reset_index()
+#     else:
+#         new_df = new_df.groupby(by=dims, observed=True)[[total_name]].sum().reset_index()
+#
+#     new_df[object_columns] = new_df[object_columns].astype(str)
+#
+#     return new_df
