@@ -206,12 +206,14 @@ def explain_changes_in_totals(
         sf_size.final_size = final_size
         sf_avg.final_size = final_size
         sp = SlicerPair(sf_size, sf_avg)
-        sp.plot = lambda plot_is_static=False, width=2000, height=500: plot_split_segments(
-            sp.s1,
-            sp.s2,
-            plot_is_static=plot_is_static,
-            width=width,
-            height=height,
+        sp.plot = (
+            lambda plot_is_static=False, width=2000, height=500: plot_split_segments(
+                sp.s1,
+                sp.s2,
+                plot_is_static=plot_is_static,
+                width=width,
+                height=height,
+            )
         )
         return sp
 
@@ -313,7 +315,11 @@ def explain_levels(
     # print(average)
     sf.reg.intercept_ = average
     sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False: plot_segments(
-        sf, plot_is_static=plot_is_static, width=width, height=height, return_fig=return_fig
+        sf,
+        plot_is_static=plot_is_static,
+        width=width,
+        height=height,
+        return_fig=return_fig,
     )
     sf.task = "levels"
     return sf
@@ -359,7 +365,9 @@ def explain_timeseries(
     # replace NaN values in numeric columns with zeros
     # replace NaN values in categorical columns with the column name + "_unknown"
     # Group by dims + [time_name]
-    df = prepare_df(df, dims, total_name=total_name, size_name=size_name, time_name=time_name)
+    df = prepare_df(
+        df, dims, total_name=total_name, size_name=size_name, time_name=time_name
+    )
 
     if size_name is None:
         size_name = "size"
@@ -368,9 +376,16 @@ def explain_timeseries(
     # strip out constants and possibly linear trends for each dimension combination
     baseline_dims = 1
     time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims)
-    df = strip_out_baseline(df, basis=time_basis, strip_trends=False)
+    df = strip_out_baseline(
+        df,
+        dims=dims,
+        total_name=total_name,
+        size_name=size_name,
+        time_name=time_name,
+        basis=time_basis,
+    )
 
-    # we want to look for deviations from average value
+    # This block is pointless as we just normalized each sub-segment to zero average across time
     average = df[total_name].sum() / df[size_name].sum()
     df["_target"] = df[total_name] - df[size_name] * average
 
@@ -399,7 +414,11 @@ def explain_timeseries(
     # print(average)
     sf.reg.intercept_ = average
     sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False: plot_segments(
-        sf, plot_is_static=plot_is_static, width=width, height=height, return_fig=return_fig
+        sf,
+        plot_is_static=plot_is_static,
+        width=width,
+        height=height,
+        return_fig=return_fig,
     )
     sf.task = "levels"
     return sf
