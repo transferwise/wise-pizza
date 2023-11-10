@@ -1,3 +1,4 @@
+import copy
 import itertools
 from typing import Optional, List, Dict, Sequence
 from collections import defaultdict
@@ -131,9 +132,10 @@ def sparse_dummy_matrix(
 
     dims_dict = {dim: list(dim_df[dim].unique()) + list(clusters[dim]) for dim in dim_df.columns}
 
-    # Go over all possible depths
+
     defs = []
     mats = []
+    # Go over all possible depths
     for num_dims in tqdm(dims_range) if verbose else dims_range:
         # for each depth, sample the possible dimension combinations
         for these_dims in itertools.combinations(dims, num_dims):
@@ -147,8 +149,22 @@ def sparse_dummy_matrix(
             segment_constraints = segment_defs_new(dims_dict, used_dims)
             this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache, cluster_names)
 
-            mats.append(this_mat)
-            defs += these_defs
+            if time_basis is None:
+                mats.append(this_mat)
+                defs += these_defs
+            else:
+                for b_name, b_mat in time_basis.items():
+                    re_defs = copy.deepcopy(these_defs)
+                    for d in re_defs:
+                        d["time"] = b_name
+
+                    m = csc_matrix(np.ones(shape=(1, this_mat.shape[1])))
+                    re_basis = b_mat @ m
+                    re_mat = this_mat.multiply(re_basis)
+
+                    mats.append(re_mat)
+                    defs.append(re_defs)
+
 
             if len(defs) >= max_out_size:
                 mat = hstack(mats)

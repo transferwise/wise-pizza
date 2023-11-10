@@ -154,7 +154,7 @@ def test_synthetic_template(nan_percent: float):
 
 # @pytest.mark.parametrize("nan_percent", [0.0, 1.0])
 # def test_synthetic_ts_template(nan_percent: float):
-#     all_data = synthetic_ts_data(init_len=1000)
+#     all_data = synthetic_ts_data(init_len=10000)
 #     data = all_data.data
 #     if nan_percent > 0:
 #         data = values_to_nan(data, nan_percent)
@@ -167,7 +167,6 @@ def test_synthetic_template(nan_percent: float):
 #         max_depth=2,
 #         min_segments=5,
 #         verbose=1,
-#         solver="lp",
 #     )
 #     print("***")
 #     for s in sf.segments:

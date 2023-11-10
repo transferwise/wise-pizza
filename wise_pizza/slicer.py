@@ -56,7 +56,9 @@ class SliceFinder:
         @param time_basis: the set of time profiles to scale the candidate segments by
         @return:
         """
-        sel = HeuristicSelector(max_cols=max_cols, weights=self.weights, totals=self.totals)
+        sel = HeuristicSelector(
+            max_cols=max_cols, weights=self.weights, totals=self.totals
+        )
 
         basis_iter = sparse_dummy_matrix(
             dim_df,
@@ -74,7 +76,6 @@ class SliceFinder:
             out = sel(this_X, these_col_defs)
 
         return out
-
 
     def fit(
         self,
@@ -135,9 +136,23 @@ class SliceFinder:
         dim_df["weights"] = weights
         if time_col is not None:
             dim_df["__time"] = time_col
+            sort_dims = dims + ["__time"]
+        else:
+            sort_dims = dims
 
-        dim_df = dim_df.sort_values(dims)
+        dim_df = dim_df.sort_values(sort_dims)
         dim_df = dim_df[dim_df["weights"] != 0]
+
+        # Transform the time basis from table by date to matrices by dataset row
+        if time_col is not None:
+            tall_basis = pd.merge(
+                dim_df[["__time"]], time_basis, left_on="__time", right_index=True
+            ).drop(columns=["__time"])
+            self.time_basis = {}
+            for c in tall_basis.columns:
+                self.time_basis[c] = csc_matrix(tall_basis[c].values.reshape((-1,1)))
+        else:
+            self.time_basis = None
 
         self.weights = dim_df["weights"].values
         self.totals = dim_df["totals"].values
@@ -148,21 +163,32 @@ class SliceFinder:
         self.cluster_names = {}
         if cluster_values:
             for dim in dims:
-                if len(dim_df[dim].unique()) >= 6:  # otherwise what's the point in clustering?
-                    grouped_df = dim_df[[dim, "totals", "weights"]].groupby(dim, as_index=False).sum()
+                if (
+                    len(dim_df[dim].unique()) >= 6
+                ):  # otherwise what's the point in clustering?
+                    grouped_df = (
+                        dim_df[[dim, "totals", "weights"]]
+                        .groupby(dim, as_index=False)
+                        .sum()
+                    )
                     grouped_df["avg"] = grouped_df["totals"] / grouped_df["weights"]
                     grouped_df["cluster"], _ = guided_kmeans(grouped_df["avg"])
                     pre_clusters = (
-                        grouped_df[["cluster", dim]].groupby("cluster").agg({dim: lambda x: "@@".join(x)}).values
+                        grouped_df[["cluster", dim]]
+                        .groupby("cluster")
+                        .agg({dim: lambda x: "@@".join(x)})
+                        .values
                     )
                     # filter out clusters with only one element
                     these_clusters = [c for c in pre_clusters.reshape(-1) if "@@" in c]
                     # create short cluster names
                     for i, c in enumerate(these_clusters):
                         self.cluster_names[f"{dim}_cluster_{i+1}"] = c
-                    clusters[dim] = [c for c in self.cluster_names.keys() if c.startswith(dim)]
+                    clusters[dim] = [
+                        c for c in self.cluster_names.keys() if c.startswith(dim)
+                    ]
 
-        dim_df = dim_df[dims if time_col is None else dims + ["__time"]]
+        dim_df = dim_df[dims] # if time_col is None else dims + ["__time"]]
 
         # lazy calculation of the dummy matrix (calculation can be very slow)
         if (
@@ -172,7 +198,12 @@ class SliceFinder:
             and len(dim_df) != self.X.shape[1]
         ):
             self.X, self.col_defs = self._init_mat(
-                dim_df, min_depth, max_depth, force_dim=force_dim, clusters=clusters, time_basis=time_basis
+                dim_df,
+                min_depth,
+                max_depth,
+                force_dim=force_dim,
+                clusters=clusters,
+                time_basis=self.time_basis,
             )
             self.min_depth = min_depth
             self.max_depth = max_depth
@@ -229,7 +260,11 @@ class SliceFinder:
 
     @staticmethod
     def segment_to_str(segment: Dict[str, any]):
-        s = {k: v for k, v in segment.items() if k not in ["coef", "impact", "avg_impact"]}
+        s = {
+            k: v
+            for k, v in segment.items()
+            if k not in ["coef", "impact", "avg_impact"]
+        }
         return str(s)
 
     @property
