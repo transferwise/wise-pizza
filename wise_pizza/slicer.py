@@ -73,9 +73,9 @@ class SliceFinder:
 
         # do pre-filter recursively
         for this_X, these_col_defs in basis_iter:
-            out = sel(this_X, these_col_defs)
+            X_out, col_defs_out = sel(this_X, these_col_defs)
 
-        return out
+        return X_out, col_defs_out
 
     def fit(
         self,
@@ -205,6 +205,7 @@ class SliceFinder:
                 clusters=clusters,
                 time_basis=self.time_basis,
             )
+            assert len(self.col_defs) == self.X.shape[1]
             self.min_depth = min_depth
             self.max_depth = max_depth
             self.dims = list(dim_df.columns)

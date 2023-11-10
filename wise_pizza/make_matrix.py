@@ -148,6 +148,7 @@ def sparse_dummy_matrix(
 
             segment_constraints = segment_defs_new(dims_dict, used_dims)
             this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache, cluster_names)
+            assert len(these_defs) == this_mat.shape[1]
 
             if time_basis is None:
                 mats.append(this_mat)
@@ -162,18 +163,21 @@ def sparse_dummy_matrix(
                     re_basis = b_mat @ m
                     re_mat = this_mat.multiply(re_basis)
 
+                    assert len(re_defs) == re_mat.shape[1]
                     mats.append(re_mat)
-                    defs.append(re_defs)
+                    defs+=re_defs
 
 
             if len(defs) >= max_out_size:
                 mat = hstack(mats)
+                assert len(defs) == mat.shape[1]
                 yield mat, defs
                 defs =[]
                 mats = []
     # mop up
     if len(defs):
         mat = hstack(mats)
+        assert len(defs) == mat.shape[1]
         yield mat, defs
 
 

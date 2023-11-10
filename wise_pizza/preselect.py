@@ -11,8 +11,11 @@ class HeuristicSelector:
         self.X = None
 
     def __call__(self, X, col_defs):
+        assert len(col_defs) == X.shape[1]
+
         self.col_defs += col_defs
         self.X = X if self.X is None else hstack([self.X, X])
+        assert len(self.col_defs) == self.X.shape[1]
         # TODO: make this stateful and incremental
         if self.X.shape[1] > self.max_cols:
             chunk_size = int(self.max_cols / 2)
@@ -40,6 +43,7 @@ class HeuristicSelector:
 
             self.X = self.X[:, best]
             self.col_defs = [self.col_defs[i] for i in best]
+            assert len(self.col_defs) == self.X.shape[1]
             # end naive pre-filter
 
         return self.X, self.col_defs

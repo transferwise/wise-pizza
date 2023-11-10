@@ -152,31 +152,31 @@ def test_synthetic_template(nan_percent: float):
     print("yay!")
 
 
-# @pytest.mark.parametrize("nan_percent", [0.0, 1.0])
-# def test_synthetic_ts_template(nan_percent: float):
-#     all_data = synthetic_ts_data(init_len=10000)
-#     data = all_data.data
-#     if nan_percent > 0:
-#         data = values_to_nan(data, nan_percent)
-#     sf = explain_timeseries(
-#         data,
-#         dims=all_data.dimensions,
-#         total_name=all_data.segment_total,
-#         time_name=all_data.time_col,
-#         size_name=all_data.segment_size,
-#         max_depth=2,
-#         min_segments=5,
-#         verbose=1,
-#     )
-#     print("***")
-#     for s in sf.segments:
-#         print(s)
-#
-#     assert abs(sf.segments[0]["coef"] - 300) < 2
-#     assert abs(sf.segments[1]["coef"] - 100) < 2
-#
-#     # sf.plot()
-#     print("yay!")
+@pytest.mark.parametrize("nan_percent", [0.0, 1.0])
+def test_synthetic_ts_template(nan_percent: float):
+    all_data = synthetic_ts_data(init_len=10000)
+    data = all_data.data
+    if nan_percent > 0:
+        data = values_to_nan(data, nan_percent)
+    sf = explain_timeseries(
+        data,
+        dims=all_data.dimensions,
+        total_name=all_data.segment_total,
+        time_name=all_data.time_col,
+        size_name=all_data.segment_size,
+        max_depth=2,
+        min_segments=5,
+        verbose=1,
+    )
+    print("***")
+    for s in sf.segments:
+        print(s)
+
+    assert abs(sf.segments[0]["coef"] - 300) < 2
+    assert abs(sf.segments[1]["coef"] - 100) < 2
+
+    # sf.plot()
+    print("yay!")
 
 
 @pytest.mark.parametrize(
