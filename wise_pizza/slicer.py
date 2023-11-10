@@ -56,8 +56,9 @@ class SliceFinder:
         @param time_basis: the set of time profiles to scale the candidate segments by
         @return:
         """
+        sel = HeuristicSelector(max_cols=max_cols, weights=self.weights, totals=self.totals)
 
-        X, col_defs = sparse_dummy_matrix(
+        basis_iter = sparse_dummy_matrix(
             dim_df,
             min_depth=min_depth,
             max_depth=max_depth,
@@ -68,9 +69,12 @@ class SliceFinder:
             time_basis=time_basis,
         )
 
-        # TODO: do naive pre-filter recursively
-        sel = HeuristicSelector(max_cols=max_cols, weights=self.weights, totals=self.totals)
-        return sel(X, col_defs)
+        # do pre-filter recursively
+        for this_X, these_col_defs in basis_iter:
+            out = sel(this_X, these_col_defs)
+
+        return out
+
 
     def fit(
         self,

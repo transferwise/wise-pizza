@@ -103,6 +103,7 @@ def sparse_dummy_matrix(
     clusters: Optional[Dict[str, Sequence[str]]] = None,
     cluster_names: Optional[Dict[str, str]] = None,
     time_basis: Optional[pd.DataFrame] = None,
+    max_out_size: int = 100000
 ):
     # generate a sparse dummy matrix based on all the combinations
     if force_dim is None:
@@ -117,8 +118,7 @@ def sparse_dummy_matrix(
     # drop dimensions with only one value, for clarity
     dims = [d for d in dims if len(dim_df[d].unique()) > 1]
 
-    defs = []
-    mats = []
+
     dims_range_min = min(len(dims), max(1, min_depth))
     dims_range_max = min(len(dims) + 1, max_depth + 1)
     dims_range = range(dims_range_min, dims_range_max)
@@ -132,6 +132,8 @@ def sparse_dummy_matrix(
     dims_dict = {dim: list(dim_df[dim].unique()) + list(clusters[dim]) for dim in dim_df.columns}
 
     # Go over all possible depths
+    defs = []
+    mats = []
     for num_dims in tqdm(dims_range) if verbose else dims_range:
         # for each depth, sample the possible dimension combinations
         for these_dims in itertools.combinations(dims, num_dims):
@@ -145,12 +147,18 @@ def sparse_dummy_matrix(
             segment_constraints = segment_defs_new(dims_dict, used_dims)
             this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache, cluster_names)
 
-            # these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
-            # this_mat = construct_dummies(these_defs, dummy_cache)
             mats.append(this_mat)
             defs += these_defs
-    mat = hstack(mats)
-    return mat, defs
+
+            if len(defs) >= max_out_size:
+                mat = hstack(mats)
+                yield mat, defs
+                defs =[]
+                mats = []
+    # mop up
+    if len(defs):
+        mat = hstack(mats)
+        yield mat, defs
 
 
 def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> List[Dict[str, str]]:
