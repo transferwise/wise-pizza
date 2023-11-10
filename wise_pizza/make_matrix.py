@@ -105,8 +105,6 @@ def sparse_dummy_matrix(
     time_basis: Optional[pd.DataFrame] = None,
 ):
     # generate a sparse dummy matrix based on all the combinations
-    # TODO: do a  nested sparse regression fit to form groups of dim values, pos, neg, null
-    # TODO: first calculate the matrix size, scale down max_depth if matrix too big
     if force_dim is None:
         dims = list(dim_df.columns)
     else:
@@ -131,7 +129,6 @@ def sparse_dummy_matrix(
         this_mat, these_defs = join_to_sparse(dim_df, d, verbose=verbose)
         dummy_cache[d] = {this_def: this_mat[:, i : i + 1] for i, this_def in enumerate(these_defs)}
 
-    # TODO: maps dimension names to dimension values
     dims_dict = {dim: list(dim_df[dim].unique()) + list(clusters[dim]) for dim in dim_df.columns}
 
     # Go over all possible depths

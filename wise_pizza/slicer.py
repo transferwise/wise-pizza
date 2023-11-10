@@ -69,8 +69,8 @@ class SliceFinder:
         )
 
         # TODO: do naive pre-filter recursively
-        sel = HeuristicSelector(max_cols=max_cols)
-        return sel(X, col_defs, weights=self.weights, totals=self.totals)
+        sel = HeuristicSelector(max_cols=max_cols, weights=self.weights, totals=self.totals)
+        return sel(X, col_defs)
 
     def fit(
         self,
