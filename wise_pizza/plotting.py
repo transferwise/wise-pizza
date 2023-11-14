@@ -20,6 +20,7 @@ def plot_split_segments(
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
+    return_fig: bool = False
 ):
     """
     Plot split segments for explain_changes: split_fits
@@ -123,7 +124,10 @@ def plot_split_segments(
             width=width + len(size_data.index) * 30,
         )
     else:
-        fig.show()
+        if return_fig:
+            return fig
+        else:
+            fig.show()
 
 
 def plot_segments(
@@ -274,7 +278,11 @@ def waterfall_layout_args(sf: SliceFinder, width: int = 1000, height: int = 1000
 
 
 def plot_waterfall(
-    sf: SliceFinder, plot_is_static: bool = False, width: int = 1000, height: int = 1000
+    sf: SliceFinder, 
+    plot_is_static: bool = False, 
+    width: int = 1000, 
+    height: int = 1000,
+    return_fig: bool = False
 ):
     """
     Plot waterfall and Bar for explain_changes
@@ -312,14 +320,17 @@ def plot_waterfall(
         **waterfall_layout_args(sf, width, height)
     )
 
-    if plot_is_static:
-        # Convert the figure to a static image
-        image_bytes = to_image(fig, format="png", scale=2)
-        image_bytes2 = to_image(fig2, format="png", scale=2)
-
-        # Display the static image in the Jupyter notebook
-        display(Image(image_bytes, width=width, height=height))
-        display(Image(image_bytes2, width=width, height=height))
+    if return_fig:
+            return [fig, fig2]
     else:
-        fig.show()
-        fig2.show()
+        if plot_is_static:
+            # Convert the figure to a static image
+            image_bytes = to_image(fig, format="png", scale=2)
+            image_bytes2 = to_image(fig2, format="png", scale=2)
+
+            # Display the static image in the Jupyter notebook
+            display(Image(image_bytes, width=width, height=height))
+            display(Image(image_bytes2, width=width, height=height))
+        else:
+            fig.show()
+            fig2.show()

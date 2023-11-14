@@ -26,6 +26,7 @@ def explain_changes_in_average(
     force_add_up: bool = False,
     constrain_signs: bool = True,
     verbose: int = 0,
+    return_fig: bool = False
 ):
     """
     Find segments most useful in explaining the difference between the averages of the two datasets
@@ -48,6 +49,7 @@ def explain_changes_in_average(
     @param constrain_signs: Whether to constrain weights of segments to have the same
     sign as naive segment averages
     @param verbose: If set to a truish value, lots of debug info is printed to console
+    @param return_fig: If set to true, plot returns the figure object, otherwise shows the figures
     @return: A fitted object
     """
     df1 = df1.copy()
@@ -86,6 +88,7 @@ def explain_changes_in_average(
         force_add_up=force_add_up,
         constrain_signs=constrain_signs,
         verbose=verbose,
+        return_fig=return_fig
     )
 
     if hasattr(sf, "pre_total"):
@@ -119,6 +122,7 @@ def explain_changes_in_totals(
     force_add_up: bool = False,
     constrain_signs: bool = True,
     verbose: int = 0,
+    return_fig: bool = False
 ):
     """
     Find segments most useful in explaining the difference between the totals of the two datasets
@@ -141,6 +145,7 @@ def explain_changes_in_totals(
     @param constrain_signs: Whether to constrain weights of segments to have the same
     sign as naive segment averages
     @param verbose: If set to a truish value, lots of debug info is printed to console
+    @param return_fig: If set to true, plot returns the figure object, otherwise shows the figures
     @return: A fitted object
     """
 
@@ -181,6 +186,7 @@ def explain_changes_in_totals(
             force_add_up=force_add_up,
             constrain_signs=constrain_signs,
             verbose=verbose,
+            return_fig=return_fig
         )
 
         sf_avg = explain_levels(
@@ -195,6 +201,7 @@ def explain_changes_in_totals(
             force_add_up=force_add_up,
             constrain_signs=constrain_signs,
             verbose=verbose,
+            return_fig=return_fig
         )
 
         sf_size.final_size = final_size
@@ -207,6 +214,7 @@ def explain_changes_in_totals(
                 plot_is_static=plot_is_static,
                 width=width,
                 height=height,
+                return_fig=return_fig
             )
         )
         return sp
@@ -233,7 +241,7 @@ def explain_changes_in_totals(
         sf.post_total = df2[total_name].sum()
 
         sf.plot = lambda plot_is_static=False, width=1000, height=1000: plot_waterfall(
-            sf, plot_is_static=plot_is_static, width=width, height=height
+            sf, plot_is_static=plot_is_static, width=width, height=height, return_fig=return_fig
         )
         sf.task = "changes in totals"
         return sf
@@ -252,6 +260,7 @@ def explain_levels(
     verbose=0,
     force_add_up: bool = False,
     constrain_signs: bool = True,
+    return_fig: bool = False
 ):
     """
     Find segments whose average is most different from the global one
@@ -267,6 +276,7 @@ def explain_levels(
     @param verbose: If set to a truish value, lots of debug info is printed to console
     @param force_add_up: Force the contributions of chosen segments to add up to zero
     @param constrain_signs: Whether to constrain weights of segments to have the same
+    @param return_fig: If set to true, plot returns the figure object, otherwise shows the figures
     sign as naive segment averages
     @return: A fitted object
     """
@@ -304,7 +314,7 @@ def explain_levels(
         s["total"] += average * s["seg_size"]
     # print(average)
     sf.reg.intercept_ = average
-    sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False: plot_segments(
+    sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=return_fig: plot_segments(
         sf, plot_is_static=plot_is_static, width=width, height=height, return_fig=return_fig
     )
     sf.task = "levels"
