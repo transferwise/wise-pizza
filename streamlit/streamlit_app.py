@@ -50,12 +50,6 @@ def load_data_upload():
     data = pd.read_csv(uploaded_file)
     return data
 
-def load_data_snowflake(input_query, conn):
-    cur = conn.cursor()
-    cur.execute(input_query)
-    sql_df = cur.fetch_pandas_all()
-    return sql_df
-
 on = st.toggle('Use sample data from Github')
 url_data = (r'https://raw.githubusercontent.com/transferwise/wise-pizza/main/data/synth_data.csv')
 
