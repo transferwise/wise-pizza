@@ -22,7 +22,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 root_path = os.path.realpath('../..')
-print(root_path)
 
 # this assumes that all of the following files are checked in the same directory
 sys.path.append(os.path.join(root_path,"wise-pizza"))
@@ -31,7 +30,6 @@ sys.path.append(os.path.join(root_path,"wise-pizza"))
 data_dir = os.path.realpath(os.path.join(root_path, 'wise-pizza/data'))
 if not os.path.isdir(data_dir):
     os.mkdir(data_dir)
-print(data_dir)
 
 from wise_pizza import explain_levels, explain_changes_in_totals, explain_changes_in_average
 # False if you want nice interactive plots
