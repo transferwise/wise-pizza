@@ -1,25 +1,10 @@
 """An example of Streamlit leveraging Wise pizza."""
 
-import altair as alt
-import pydeck as pdk
 import streamlit as st
-
 import os, sys
-import datetime
-import random
-from typing import List
-import copy
-import gzip
-
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score, accuracy_score
-import numpy as np
 import pandas as pd
+from wise_pizza import explain_levels, explain_changes_in_totals, explain_changes_in_average
 
-from io import StringIO
-
-import warnings
-warnings.filterwarnings("ignore")
 
 root_path = os.path.realpath('../..')
 
@@ -31,7 +16,6 @@ data_dir = os.path.realpath(os.path.join(root_path, 'wise-pizza/data'))
 if not os.path.isdir(data_dir):
     os.mkdir(data_dir)
 
-from wise_pizza import explain_levels, explain_changes_in_totals, explain_changes_in_average
 # False if you want nice interactive plots
 # True if you want static plots (Doesn't work on all platforms yet)
 plot_is_static = False
@@ -107,8 +91,6 @@ dims = [element for element in df.columns if element not in non_dimensional_colu
 
 data = df[df[flag_column] != flags_option]  # take the group to compare to
 pre_data = df[df[flag_column] == flags_option]  # take the group to be compared
-
-st.table(df[dims].head(10))
 
 st.subheader('Finding the juiciest slices', divider='rainbow')
 st.text('This section does not compare groups, but rather checks which features have the most impact in the target column you selected.')
