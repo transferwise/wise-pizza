@@ -137,19 +137,19 @@ sf.segments
 Please see the full example [here](https://github.com/transferwise/wise-pizza/blob/main/notebooks/Finding%20interesting%20segments.ipynb)
 
 ## Streamlit app
-In the root directory of this repository there is a Streamlit app. This is an interface that allows you to upload your own files and run analyses as you saw in the Jupyter Notebook provided as an example.
+In the root directory of this repository, there is a Streamlit app. This is an interface that allows you to upload your own files and run analyses, as you saw in the Jupyter Notebook provided as an example.
 
 To run this, you need to:
 1. Create a virtual environment (e.g. using pyenv)
-2. Activate the virtual environment.
-3. Run `pip -r requirements.txt` before running, to install necessary dependencies.
-4. Run `streamlit run streamlit_app.py` to execute the webapp.
+2. Activate the virtual environment
+3. Run `pip -r requirements.txt` before running, to install necessary dependencies
+4. Run `streamlit run streamlit_app.py` to run Streamlit
 
 ### Docker container
 
-We created a Docker container that makes it easier to deploy this solutoin elsewhere.
+We created a Docker container that makes it easier to deploy this solution elsewhere
 
-You need to first:
+You need to first: Create the Docker image
 Create the Docker image
 
 ```Python
