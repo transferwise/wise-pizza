@@ -34,6 +34,8 @@ Sometimes, rather than explaining the change in totals from one period to the ne
     - [Comparison between two datasets](#understanding-differences-in-two-time-periods-or-two-dataframes)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Streamlit app](#streamlit-app)
+    - [Docker container](#docker-container)
 - [For Developers](#for-developers)
  - [Tests](#testing)
 
@@ -134,10 +136,31 @@ sf.segments
 ```
 Please see the full example [here](https://github.com/transferwise/wise-pizza/blob/main/notebooks/Finding%20interesting%20segments.ipynb)
 
+## Streamlit app
+In the root directory of this repository there is a Streamlit app. This is an interface that allows you to upload your own files and run analyses as you saw in the Jupyter Notebook provided as an example.
+
+To run this, you need to:
+1. Create a virtual environment (e.g. using pyenv)
+2. Activate the virtual environment.
+3. Run `pip -r requirements.txt` before running, to install necessary dependencies.
+4. Run `streamlit run streamlit_app.py` to execute the webapp.
+
+### Docker container
+
+We created a Docker container that makes it easier to deploy this solutoin elsewhere.
+
+You need to first:
+Create the Docker image
+
+```Python
+docker build -t streamlit .      
+```
+And then simply run the image
+
+```Python
+docker run -p 8501:8501 streamlit    
+```
 ## For Developers
-
-
-
 
 ### Testing
 We use [PyTest](https://docs.pytest.org/) for testing. If you want to contribute code, make sure that the tests in tests/ run without errors.
