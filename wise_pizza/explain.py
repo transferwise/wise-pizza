@@ -25,6 +25,7 @@ def explain_changes_in_average(
     how: str = "totals",
     force_add_up: bool = False,
     constrain_signs: bool = True,
+    cluster_values: bool = False,
     verbose: int = 0,
 ):
     """
@@ -85,6 +86,7 @@ def explain_changes_in_average(
         how=how,
         force_add_up=force_add_up,
         constrain_signs=constrain_signs,
+        cluster_values=cluster_values,
         verbose=verbose,
     )
 
@@ -118,7 +120,7 @@ def explain_changes_in_totals(
     how: str = "totals",
     force_add_up: bool = False,
     constrain_signs: bool = True,
-        cluster_values: bool=True,
+    cluster_values: bool=False,
     verbose: int = 0,
 ):
     """
@@ -256,7 +258,7 @@ def explain_levels(
     verbose=0,
     force_add_up: bool = False,
     constrain_signs: bool = True,
-    cluster_values: bool=True
+    cluster_values: bool=False
 ):
     """
     Find segments whose average is most different from the global one
