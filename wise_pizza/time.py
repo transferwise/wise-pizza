@@ -16,9 +16,9 @@ def create_time_basis(
     const = np.ones(len(t))
     linear = np.cumsum(const)
     linear -= linear.mean()  # now orthogonal to const
-    col_names = ["Slope"]
+    col_names = ["Intercept", "Slope"]
 
-    dummies = [linear]
+    dummies = [const, linear]
 
     if include_breaks:
         for i in range(1, len(t)):
@@ -31,7 +31,6 @@ def create_time_basis(
             col_names.append(f"{t[i].astype('datetime64[M]').astype(str)}_dtrend")
 
     dummies = np.stack(dummies)
-    # TODO: make the baseline_dims: vectors orthogonal to the first baseline_dims ones
     out = pd.DataFrame(index=t, columns=col_names, data=dummies.T)
     return out
 

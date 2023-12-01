@@ -181,7 +181,7 @@ def prepare_df(
     """
     Takes a pandas dataframe and checks for missing values.
     If a column is numeric and contains missing values, replace them with zeros.
-    If a column is categorical and contains missing values, replace them with the column name followed by "_unknown".
+    If a column is categorical and contains missing values, replace them with the column name followed by "_unknown"
     Returns a new pandas dataframe.
     @param df: initial dataset
     @param dims: List of discrete dimensions
@@ -198,6 +198,7 @@ def prepare_df(
     if size_name is not None:
         new_df[size_name] = new_df[size_name].apply(float)
         new_df[[size_name, total_name]] = new_df[[size_name, total_name]].fillna(0)
+        # If weights are zero, totals must be zero in the same row
         new_df.loc[new_df[size_name] == 0, total_name] = 0
     else:
         new_df[[total_name]] = new_df[[total_name]].fillna(0)

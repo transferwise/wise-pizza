@@ -57,9 +57,10 @@ class SliceFinder:
         @return:
         """
         sel = HeuristicSelector(
-            max_cols=max_cols, weights=self.weights, totals=self.totals
+            max_cols=max_cols, weights=self.weights, totals=self.totals, time_basis=time_basis
         )
 
+        # This returns the candidate vectors in batches
         basis_iter = sparse_dummy_matrix(
             dim_df,
             min_depth=min_depth,
@@ -68,7 +69,7 @@ class SliceFinder:
             force_dim=force_dim,
             clusters=clusters,
             cluster_names=self.cluster_names,
-            time_basis=time_basis,
+            time_basis=time_basis
         )
 
         # do pre-filter recursively
@@ -130,27 +131,24 @@ class SliceFinder:
         dims = list(dim_df.columns)
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
-        # Why do we do this?
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
         if time_col is not None:
             dim_df["__time"] = time_col
+            dim_df = pd.merge(dim_df, time_basis, left_on="__time", right_index=True)
             sort_dims = dims + ["__time"]
         else:
             sort_dims = dims
 
         dim_df = dim_df.sort_values(sort_dims)
-        dim_df = dim_df[dim_df["weights"] != 0]
+        dim_df = dim_df[dim_df["weights"] > 0]
 
         # Transform the time basis from table by date to matrices by dataset row
         if time_col is not None:
-            tall_basis = pd.merge(
-                dim_df[["__time"]], time_basis, left_on="__time", right_index=True
-            ).drop(columns=["__time"])
             self.time_basis = {}
-            for c in tall_basis.columns:
-                self.time_basis[c] = csc_matrix(tall_basis[c].values.reshape((-1,1)))
+            for c in time_basis.columns:
+                self.time_basis[c] = csc_matrix(dim_df[c].values.reshape((-1,1)))
         else:
             self.time_basis = None
 
@@ -224,7 +222,7 @@ class SliceFinder:
         )
 
         self.segments = [{"segment": self.col_defs[i]} for i in self.nonzeros]
-        wgts = np.array(Xw[:, self.nonzeros].sum(axis=0))[0]
+        wgts = np.array(np.abs(Xw[:, self.nonzeros]).sum(axis=0))[0]
 
         for i, s in enumerate(self.segments):
             s["coef"] = self.reg.coef_[i]

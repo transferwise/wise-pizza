@@ -335,11 +335,12 @@ def explain_timeseries(
     max_segments: int = None,
     min_depth: int = 1,
     max_depth: int = 2,
-    solver="lasso",
-    verbose=0,
+    solver: str="lasso",
+    verbose:bool=False,
     force_add_up: bool = False,
     constrain_signs: bool = True,
     cluster_values: bool = True,
+    time_basis: Optional[pd.DataFrame] = None
 ):
     """
     Find segments whose average is most different from the global one
@@ -375,15 +376,17 @@ def explain_timeseries(
 
     # strip out constants and possibly linear trends for each dimension combination
     baseline_dims = 1
-    time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims)
-    df = strip_out_baseline(
-        df,
-        dims=dims,
-        total_name=total_name,
-        size_name=size_name,
-        time_name=time_name,
-        basis=time_basis,
-    )
+    if time_basis is None:
+        time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims)
+
+    # df = strip_out_baseline(
+    #     df,
+    #     dims=dims,
+    #     total_name=total_name,
+    #     size_name=size_name,
+    #     time_name=time_name,
+    #     basis=time_basis,
+    # )
 
     # This block is pointless as we just normalized each sub-segment to zero average across time
     average = df[total_name].sum() / df[size_name].sum()

@@ -13,7 +13,7 @@ def find_alpha(
     min_nonzeros=None,
     verbose=0,
     max_iter: int = 100,
-    solver: str = "lp",
+    solver: str = "lasso",
     use_proj=None,
     constrain_signs=True,
     adding_up_regularizer=False,

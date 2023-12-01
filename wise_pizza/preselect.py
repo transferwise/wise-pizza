@@ -1,43 +1,52 @@
+import pandas as pd
 from scipy.sparse import csc_matrix, hstack
+from typing import Optional
 import numpy as np
 
 
 class HeuristicSelector:
-    def __init__(self, weights:np.ndarray, totals:np.ndarray, max_cols: int = 300):
+    def __init__(self, weights:np.ndarray, totals:np.ndarray, max_cols: int = 300, time_basis: Optional[pd.DataFrame]=None):
         self.max_cols = max_cols
         self.col_defs = []
         self.weights = weights
         self.totals = totals
+        self.time_basis = time_basis
         self.X = None
 
-    def __call__(self, X, col_defs):
-        assert len(col_defs) == X.shape[1]
+    def __call__(self, nextX, col_defs):
+        assert len(col_defs) == nextX.shape[1]
 
         self.col_defs += col_defs
-        self.X = X if self.X is None else hstack([self.X, X])
+        self.X = nextX if self.X is None else hstack([self.X, nextX])
         assert len(self.col_defs) == self.X.shape[1]
-        # TODO: make this stateful and incremental
-        if self.X.shape[1] > self.max_cols:
-            chunk_size = int(self.max_cols / 2)
 
-            # TODO: filter by t-values instead of absolute discrepancies
-            seg_wgt = np.abs(self.X).T @ self.weights
-            seg_avg = (self.X.T @ self.totals) / seg_wgt
-            avg = self.totals.sum() / self.weights.sum()
+        w = self.weights.reshape(-1,1)
+        w=w*w
+        X = self.X.toarray()
+        WX = w * X
+        y = self.totals.reshape(-1, 1)
+        if self.X.shape[1] > self.max_cols:
+            chunk_size = int(2*self.max_cols / 3)
+            # Do a weighted regression **on each col of X separately**
+            XtWy = WX.T.dot(y).T
+            XtWX = (WX * X).sum(axis=0, keepdims=True)
+            coeffs = XtWy/XtWX
+            err = coeffs*X - y
+            sigmasq = (err*w*err).sum(axis=0, keepdims=True)
+            stds = np.sqrt(sigmasq/XtWX)
+
+            # One way of choosing "good" candidates is individually good t-values
+            tvalues = coeffs/stds
+            # Another is the total absolute difference in totals that this regressor would predict alone
+            impact = np.abs(WX).sum(axis=0, keepdims=True)*coeffs
 
             inds = []
 
-            delta = seg_avg - avg
-            unusual = np.argsort(np.abs(delta))
+            unusual = np.argsort(np.abs(tvalues.reshape(-1)))
             inds += list(unusual[-chunk_size:])
 
-            delta2 = delta * np.sqrt(seg_wgt)
-            unusual2 = np.argsort(np.abs(delta2))
+            unusual2 = np.argsort(np.abs(impact.reshape(-1)))
             inds += list(unusual2[-chunk_size:])
-
-            delta3 = delta * seg_wgt
-            unusual3 = np.argsort(np.abs(delta3))
-            inds += list(unusual3[-chunk_size:])
 
             best = np.array(list(set(inds)))
 
