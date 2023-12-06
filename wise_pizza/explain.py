@@ -48,6 +48,8 @@ def explain_changes_in_average(
     to the difference between dataset totals
     @param constrain_signs: Whether to constrain weights of segments to have the same
     sign as naive segment averages
+    @param cluster_values: In addition to single-value slices, consider slices that consist of a
+    group of segments from the same dimension with similar naive averages
     @param verbose: If set to a truish value, lots of debug info is printed to console
     @return: A fitted object
     """
@@ -143,7 +145,7 @@ def explain_changes_in_totals(
     to the difference between dataset totals
     @param constrain_signs: Whether to constrain weights of segments to have the same
     sign as naive segment averages
-    @param cluster_values In addition to single-value slices, consider slices that consist of a
+    @param cluster_values: In addition to single-value slices, consider slices that consist of a
     group of segments from the same dimension with similar naive averages
     @param verbose: If set to a truish value, lots of debug info is printed to console
     @return: A fitted object
@@ -207,12 +209,15 @@ def explain_changes_in_totals(
         sf_size.final_size = final_size
         sf_avg.final_size = final_size
         sp = SlicerPair(sf_size, sf_avg)
-        sp.plot = lambda plot_is_static=False, width=2000, height=500: plot_split_segments(
+        sp.plot = lambda plot_is_static=False, width=2000, height=500, cluster_key_width=180, cluster_value_width=318: plot_split_segments(
             sp.s1,
             sp.s2,
             plot_is_static=plot_is_static,
             width=width,
             height=height,
+            cluster_values=cluster_values,
+            cluster_key_width=cluster_key_width,
+            cluster_value_width=cluster_value_width
         )
         return sp
 
@@ -238,8 +243,14 @@ def explain_changes_in_totals(
         sf.pre_total = df1[total_name].sum()
         sf.post_total = df2[total_name].sum()
 
-        sf.plot = lambda plot_is_static=False, width=1000, height=1000: plot_waterfall(
-            sf, plot_is_static=plot_is_static, width=width, height=height
+        sf.plot = lambda plot_is_static=False, width=1000, height=1000, cluster_key_width=180, cluster_value_width=318: plot_waterfall(
+            sf,
+            plot_is_static=plot_is_static,
+            width=width,
+            height=height,
+            cluster_values=cluster_values,
+            cluster_key_width=cluster_key_width,
+            cluster_value_width=cluster_value_width
         )
         sf.task = "changes in totals"
         return sf
@@ -274,7 +285,7 @@ def explain_levels(
     @param verbose: If set to a truish value, lots of debug info is printed to console
     @param force_add_up: Force the contributions of chosen segments to add up to zero
     @param constrain_signs: Whether to constrain weights of segments to have the same sign as naive segment averages
-    @param cluster_values In addition to single-value slices, consider slices that consist of a
+    @param cluster_values: In addition to single-value slices, consider slices that consist of a
     group of segments from the same dimension with similar naive averages
     @return: A fitted object
     """
@@ -313,8 +324,15 @@ def explain_levels(
         s["total"] += average * s["seg_size"]
     # print(average)
     sf.reg.intercept_ = average
-    sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False: plot_segments(
-        sf, plot_is_static=plot_is_static, width=width, height=height, return_fig=return_fig
+    sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False, cluster_key_width=180, cluster_value_width=318: plot_segments(
+        sf,
+        plot_is_static=plot_is_static,
+        width=width,
+        height=height,
+        return_fig=return_fig,
+        cluster_values=cluster_values,
+        cluster_key_width=cluster_key_width,
+        cluster_value_width=cluster_value_width
     )
     sf.task = "levels"
     return sf

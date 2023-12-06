@@ -20,6 +20,9 @@ def plot_split_segments(
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
+    cluster_values: bool=False,
+    cluster_key_width: int = 180,
+    cluster_value_width: int = 318
 ):
     """
     Plot split segments for explain_changes: split_fits
@@ -112,18 +115,55 @@ def plot_split_segments(
 
     for i in range(1, 3):
         fig.update_yaxes(autorange="reversed", row=i)
+
+    if cluster_values:
+        data_dict = sf_size.relevant_cluster_names
+        keys = list(data_dict.keys())
+        values = list(data_dict.values())
+        key_column_width = cluster_key_width  # Adjust the multiplier as needed
+        value_column_width = cluster_value_width  # Adjust the multiplier as needed
+
+        # Create a table trace with specified column widths
+        table_trace = go.Table(
+            header=dict(values=['Cluster', 'Segments']),
+            cells=dict(values=[keys, values]),
+            columnwidth=[key_column_width, value_column_width]
+        )
+
+        # Create a layout
+        layout = go.Layout(title='Relevant cluster names',
+                           title_x=0  # Center the title
+                           )
+
+        # Create a figure
+        fig2 = go.Figure(data=[table_trace], layout=layout)
+
     if plot_is_static:
         # Convert the figure to a static image
         image_bytes = to_image(fig, format="png", scale=2)
 
-        # Display the static image in the Jupyter notebook
-        return Image(
-            image_bytes,
-            height=height + len(size_data.index) * 30,
-            width=width + len(size_data.index) * 30,
-        )
+        if cluster_values:
+            image_bytes2 = to_image(fig2, format="png", scale=2)
+            display(
+                Image(
+                    image_bytes,
+                    height=height + len(size_data.index) * 30,
+                    width=width + len(size_data.index) * 30,
+                )
+            )
+            fig2.show()
+
+        else:
+            # Display the static image in the Jupyter notebook
+            return Image(
+                image_bytes,
+                height=height + len(size_data.index) * 30,
+                width=width + len(size_data.index) * 30,
+            )
     else:
         fig.show()
+        if cluster_values:
+            fig2.show()
 
 
 def plot_segments(
@@ -131,7 +171,10 @@ def plot_segments(
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
-    return_fig: bool = False
+    return_fig: bool = False,
+    cluster_values: bool=False,
+    cluster_key_width: int  = 180,
+    cluster_value_width: int = 318
 ):
     """
     Plot segments for explain_levels
@@ -200,22 +243,62 @@ def plot_segments(
         annotation_text="Global average",
     )
 
+    if cluster_values:
+        data_dict = sf.relevant_cluster_names
+        keys = list(data_dict.keys())
+        values = list(data_dict.values())
+        key_column_width = cluster_key_width  # Adjust the multiplier as needed
+        value_column_width = cluster_value_width  # Adjust the multiplier as needed
+
+        # Create a table trace with specified column widths
+        table_trace = go.Table(
+            header=dict(values=['Cluster', 'Segments']),
+            cells=dict(values=[keys, values]),
+            columnwidth=[key_column_width, value_column_width]
+        )
+
+        # Create a layout
+        layout = go.Layout(title='Relevant cluster names',
+                           title_x=0  # Center the title
+                           )
+
+        # Create a figure
+        fig2 = go.Figure(data=[table_trace], layout=layout)
+
     if plot_is_static:
         # Convert the figure to a static image
         image_bytes = to_image(fig, format="png", scale=2)
 
         # Display the static image in the Jupyter notebook
-        return Image(
-            image_bytes,
-            height=height + len(sf.segment_labels) * 30,
-            width=width + len(sf.segment_labels) * 30,
-        )
+        if cluster_values:
+            image_bytes2 = to_image(fig2, format="png", scale=2)
+            display(
+                Image(
+                    image_bytes,
+                    height=height + len(sf.segment_labels) * 30,
+                    width=width + len(sf.segment_labels) * 30,
+                )
+            )
+            display(
+                Image(
+                    image_bytes2,
+                    height=height,
+                    width=width
+                )
+            )
+        else:
+            return Image(
+                image_bytes,
+                height=height + len(sf.segment_labels) * 30,
+                width=width + len(sf.segment_labels) * 30,
+            )
     else:
         if return_fig:
             return fig
         else:
             fig.show()
-
+            if cluster_values:
+                fig2.show()
 
 def waterfall_args(sf: SliceFinder):
     """
@@ -274,7 +357,13 @@ def waterfall_layout_args(sf: SliceFinder, width: int = 1000, height: int = 1000
 
 
 def plot_waterfall(
-    sf: SliceFinder, plot_is_static: bool = False, width: int = 1000, height: int = 1000
+    sf: SliceFinder,
+    plot_is_static: bool = False,
+    width: int = 1000,
+    height: int = 1000,
+    cluster_values: bool=False,
+    cluster_key_width: int = 180,
+    cluster_value_width: int = 318
 ):
     """
     Plot waterfall and Bar for explain_changes
@@ -287,24 +376,10 @@ def plot_waterfall(
     data = pd.DataFrame(sf.segments, index=np.array(sf.segment_labels))
     trace1 = go.Waterfall(name="Segments waterfall", **waterfall_args(sf))
 
-    trace2 = go.Bar(
-        x=data["naive_avg"],
-        y=data.index,
-        orientation="h",
-        name="Diff in averages",
-        marker_color="#ff685f",
-    )
-
     fig = go.Figure()
-    fig2 = go.Figure()
 
     fig.add_trace(trace1)
     fig.update_layout(title="Segments contributing most to the change")
-    fig2.add_trace(trace2)
-    fig2["layout"]["yaxis"].update(autorange="reversed")
-    fig2.update_layout(title="Segment averages")
-
-    fig2.update_layout(width=width, height=height)
 
     fig.update_layout(
         title="Segments contributing most to the change",
@@ -312,14 +387,38 @@ def plot_waterfall(
         **waterfall_layout_args(sf, width, height)
     )
 
+    if cluster_values:
+        data_dict = sf.relevant_cluster_names
+        keys = list(data_dict.keys())
+        values = list(data_dict.values())
+        key_column_width = cluster_key_width  # Adjust the multiplier as needed
+        value_column_width = cluster_value_width  # Adjust the multiplier as needed
+
+        # Create a table trace with specified column widths
+        table_trace = go.Table(
+            header=dict(values=['Cluster', 'Segments']),
+            cells=dict(values=[keys, values]),
+            columnwidth=[key_column_width, value_column_width]
+        )
+
+        # Create a layout
+        layout = go.Layout(title='Relevant cluster names',
+                           title_x=0  # Center the title
+                           )
+
+        # Create a figure
+        fig2 = go.Figure(data=[table_trace], layout=layout)
+
     if plot_is_static:
         # Convert the figure to a static image
         image_bytes = to_image(fig, format="png", scale=2)
-        image_bytes2 = to_image(fig2, format="png", scale=2)
-
-        # Display the static image in the Jupyter notebook
-        display(Image(image_bytes, width=width, height=height))
-        display(Image(image_bytes2, width=width, height=height))
+        if cluster_values:
+            display(Image(image_bytes, height=height, width=width))
+            fig2.show()
+        else:
+            # Display the static image in the Jupyter notebook
+            display(Image(image_bytes, width=width, height=height))
     else:
         fig.show()
-        fig2.show()
+        if cluster_values:
+            fig2.show()
