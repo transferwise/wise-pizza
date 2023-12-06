@@ -1,5 +1,6 @@
 import itertools
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Sequence
+from collections import defaultdict
 
 import numpy as np
 import scipy
@@ -99,6 +100,8 @@ def sparse_dummy_matrix(
     max_depth: int = 2,
     verbose=0,
     force_dim: Optional[str] = None,
+    clusters: Optional[Dict[str, Sequence[str]]] = None,
+    cluster_names: Optional[Dict[str,str]] = None
 ):
     # generate a sparse dummy matrix based on all the combinations
     # TODO: do a  nested sparse regression fit to form groups of dim values, pos, neg, null
@@ -108,6 +111,9 @@ def sparse_dummy_matrix(
     else:
         assert force_dim in dim_df.columns
         dims = [c for c in dim_df.columns if c != force_dim]
+
+    if clusters is None:
+        clusters = defaultdict(list)
 
     # drop dimensions with only one value, for clarity
     dims = [d for d in dims if len(dim_df[d].unique()) > 1]
@@ -124,7 +130,12 @@ def sparse_dummy_matrix(
         this_mat, these_defs = join_to_sparse(dim_df, d, verbose=verbose)
         dummy_cache[d] = {this_def: this_mat[:, i : i + 1] for i, this_def in enumerate(these_defs)}
 
+    # TODO: maps dimension names to dimension values
+    dims_dict = {dim: list(dim_df[dim].unique()) + list(clusters[dim]) for dim in dim_df.columns}
+
+    # Go over all possible depths
     for num_dims in tqdm(dims_range) if verbose else dims_range:
+        # for each depth, sample the possible dimension combinations
         for these_dims in itertools.combinations(dims, num_dims):
             if num_dims == 1 and these_dims[0] == "Change from":
                 continue
@@ -133,9 +144,55 @@ def sparse_dummy_matrix(
             else:
                 used_dims = [force_dim] + list(these_dims)
 
-            these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
-            this_mat = construct_dummies(these_defs, dummy_cache)
+            segment_constraints = segment_defs_new(dims_dict, used_dims)
+            this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache, cluster_names)
+
+            # these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
+            # this_mat = construct_dummies(these_defs, dummy_cache)
             mats.append(this_mat)
             defs += these_defs
     mat = hstack(mats)
     return mat, defs
+
+
+def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> List[Dict[str, str]]:
+    # Look at all possible combinations of dimension values for the chosen dimensions
+    if len(used_dims) == 1:
+        return np.array(dims_dict[used_dims[0]]).reshape(-1, 1)
+    else:
+        tmp = segment_defs_new(dims_dict, used_dims[:-1])
+        this_dim_values = np.array(dims_dict[used_dims[-1]])
+        repeated_values = np.tile(this_dim_values.reshape(-1, 1), len(tmp)).reshape(-1, 1)
+        pre_out = np.tile(tmp, (len(this_dim_values), 1))
+        out = np.concatenate([pre_out, repeated_values], axis=1)
+        return out
+
+
+def construct_dummies_new(
+    used_dims: List[str],
+        segment_defs: np.ndarray,
+        cache: Dict[str, Dict[str, np.ndarray]],
+        cluster_names: Optional[Dict[str,str]] = None
+) -> scipy.sparse.csc_matrix:
+    dummies = []
+    segments = []
+    for sgdf in segment_defs:
+        tmp = None
+        for i, d in enumerate(used_dims):
+            if isinstance(sgdf[i], str) and sgdf[i] not in cache[d]:  # a group of multiple values from that dim
+                sub_values = cluster_names[sgdf[i]].split("@@")
+                this_dummy = 0
+                for val in sub_values:
+                    this_dummy += cache[d][val]
+
+            else:
+                this_dummy = cache[d][sgdf[i]]
+
+            if tmp is None:
+                tmp = this_dummy
+            else:
+                tmp = tmp.multiply(this_dummy)
+        if tmp.sum() > 0:
+            dummies.append(tmp)
+            segments.append(dict(zip(used_dims, sgdf)))
+    return hstack(dummies), segments

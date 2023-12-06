@@ -121,6 +121,12 @@ sf1 = explain_changes_in_average(
 
 ![plot](https://github.com/transferwise/wise-pizza/blob/main/docs/explain_changes_in_average(totals).png?raw=True)
 
+***In addition to single-value slices, consider slices that consist of a
+    group of segments from the same dimension with similar naive averages***
+For that goal you can use cluster_values=True parameter.
+
+![plot](https://github.com/transferwise/wise-pizza/blob/main/docs/cluster_values.png?raw=True)
+
 And then you can visualize differences:
 
 ```Python
@@ -132,6 +138,12 @@ And check segments:
 ```Python
 sf.segments
 ```
+
+if you use cluster values, you can also check relevant cluster names:
+```Python
+sf.relevant_cluster_names
+```
+
 Please see the full example [here](https://github.com/transferwise/wise-pizza/blob/main/notebooks/Finding%20interesting%20segments.ipynb)
 
 ## For Developers

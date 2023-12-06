@@ -1,5 +1,6 @@
 import json
-from typing import Optional, Union, List, Dict
+from typing import Optional, Union, List, Dict, Sequence
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,7 @@ from scipy.sparse import csc_matrix, diags
 
 from wise_pizza.find_alpha import clean_up_min_max, find_alpha
 from wise_pizza.make_matrix import sparse_dummy_matrix
+from wise_pizza.cluster import guided_kmeans
 
 
 def _summary(obj) -> str:
@@ -39,6 +41,7 @@ class SliceFinder:
         max_depth: int,
         max_cols: int = 300,
         force_dim: Optional[str] = None,
+        clusters: Optional[Dict[str, Sequence[str]]] = None,
     ):
         """
         Function to initialize sparse matrix
@@ -49,12 +52,15 @@ class SliceFinder:
         @param force_dim: To add dim
         @return:
         """
+
         self.X, self.col_defs = sparse_dummy_matrix(
             dim_df,
             min_depth=min_depth,
             max_depth=max_depth,
             verbose=self.verbose,
             force_dim=force_dim,
+            clusters=clusters,
+            cluster_names = self.cluster_names
         )
 
         # try naive pre-filter
@@ -103,6 +109,7 @@ class SliceFinder:
         force_dim: Optional[str] = None,
         force_add_up: bool = False,
         constrain_signs: bool = True,
+        cluster_values: bool = True,
     ):
         """
         Function to fit slicer and find segments
@@ -118,6 +125,9 @@ class SliceFinder:
         @param force_dim: To add dim
         @param force_add_up: To force add up
         @param constrain_signs: To constrain signs
+        @param cluster_values In addition to single-value slices, consider slices that consist of a
+        group of segments from the same dimension with similar naive averages
+
         """
         min_segments, max_segments = clean_up_min_max(min_segments, max_segments)
         if verbose is not None:
@@ -142,6 +152,26 @@ class SliceFinder:
         dim_df = dim_df[dim_df["weights"] != 0]
         self.weights = dim_df["weights"].values
         self.totals = dim_df["totals"].values
+
+        # While we still have weights and totals as part of the dataframe, let's produce clusters
+        # of dimension values with similar outcomes
+        clusters = defaultdict(list)
+        self.cluster_names = {}
+        if cluster_values:
+            for dim in dims:
+                if len(dim_df[dim].unique()) >= 6:  # otherwise what's the point in clustering?
+                    grouped_df = dim_df[[dim, "totals", "weights"]].groupby(dim, as_index=False).sum()
+                    grouped_df["avg"] = grouped_df["totals"] / grouped_df["weights"]
+                    grouped_df["cluster"], _ = guided_kmeans(grouped_df["avg"])
+                    pre_clusters = (
+                        grouped_df[["cluster", dim]].groupby("cluster").agg({dim: lambda x: "@@".join(x)}).values
+                    )
+                    # filter out clusters with only one element
+                    these_clusters = [c for c in pre_clusters.reshape(-1) if "@@" in c]
+                    # create short cluster names
+                    for i, c in enumerate(these_clusters):
+                        self.cluster_names[f"{dim}_cluster_{i+1}"] = c
+                    clusters[dim] = [c for c in self.cluster_names.keys() if c.startswith(dim)]
         dim_df = dim_df[dims]
 
         # lazy calculation of the dummy matrix (calculation can be very slow)
@@ -151,7 +181,8 @@ class SliceFinder:
             or self.X is not None
             and len(dim_df) != self.X.shape[1]
         ):
-            self._init_mat(dim_df, min_depth, max_depth, force_dim=force_dim)
+            self._init_mat(dim_df, min_depth, max_depth, force_dim=force_dim, clusters=clusters)
+
         Xw = csc_matrix(diags(self.weights) @ self.X)
 
         self.reg, self.nonzeros = find_alpha(
@@ -203,11 +234,7 @@ class SliceFinder:
 
     @staticmethod
     def segment_to_str(segment: Dict[str, any]):
-        s = {
-            k: v
-            for k, v in segment.items()
-            if k not in ["coef", "impact", "avg_impact"]
-        }
+        s = {k: v for k, v in segment.items() if k not in ["coef", "impact", "avg_impact"]}
         return str(s)
 
     @property
@@ -217,6 +244,14 @@ class SliceFinder:
     def summary(self):
         return _summary(self)
 
+    @property
+    def relevant_cluster_names(self):
+        relevant_clusters = {}
+        for s in self.segments:
+            for c in s["segment"].values():
+                if c in self.cluster_names:
+                    relevant_clusters[c] = self.cluster_names[c].replace("@@",", ")
+        return relevant_clusters
 
 class SlicerPair:
     def __init__(self, s1: SliceFinder, s2: SliceFinder):
