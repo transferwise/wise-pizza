@@ -148,7 +148,7 @@ sf.relevant_cluster_names
 
 Please see the full example [here](https://github.com/transferwise/wise-pizza/blob/main/notebooks/Finding%20interesting%20segments.ipynb)
 
-## Streamlit app
+## Streamlit app (beta)
 In the root directory of this repository, there is a Streamlit app. This is an interface that allows you to upload your own files and run analyses, as you saw in the Jupyter Notebook provided as an example.
 
 To run this, you need to:
