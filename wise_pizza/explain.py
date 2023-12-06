@@ -209,7 +209,7 @@ def explain_changes_in_totals(
         sf_size.final_size = final_size
         sf_avg.final_size = final_size
         sp = SlicerPair(sf_size, sf_avg)
-        sp.plot = lambda plot_is_static=False, width=2000, height=500, cluster_key_width=180, cluster_value_width=318: plot_split_segments(
+        sp.plot = lambda plot_is_static=False, width=2000, height=500, cluster_key_width=180, cluster_value_width=318, return_fig=False: plot_split_segments(
             sp.s1,
             sp.s2,
             plot_is_static=plot_is_static,
@@ -217,7 +217,8 @@ def explain_changes_in_totals(
             height=height,
             cluster_values=cluster_values,
             cluster_key_width=cluster_key_width,
-            cluster_value_width=cluster_value_width
+            cluster_value_width=cluster_value_width,
+            return_fig=return_fig
         )
         return sp
 
@@ -243,14 +244,15 @@ def explain_changes_in_totals(
         sf.pre_total = df1[total_name].sum()
         sf.post_total = df2[total_name].sum()
 
-        sf.plot = lambda plot_is_static=False, width=1000, height=1000, cluster_key_width=180, cluster_value_width=318: plot_waterfall(
+        sf.plot = lambda plot_is_static=False, width=1000, height=1000, cluster_key_width=180, cluster_value_width=318, return_fig=False: plot_waterfall(
             sf,
             plot_is_static=plot_is_static,
             width=width,
             height=height,
             cluster_values=cluster_values,
             cluster_key_width=cluster_key_width,
-            cluster_value_width=cluster_value_width
+            cluster_value_width=cluster_value_width,
+            return_fig=return_fig
         )
         sf.task = "changes in totals"
         return sf

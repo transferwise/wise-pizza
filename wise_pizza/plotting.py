@@ -22,7 +22,8 @@ def plot_split_segments(
     height: int = 500,
     cluster_values: bool=False,
     cluster_key_width: int = 180,
-    cluster_value_width: int = 318
+    cluster_value_width: int = 318,
+    return_fig: bool = False
 ):
     """
     Plot split segments for explain_changes: split_fits
@@ -143,7 +144,6 @@ def plot_split_segments(
         image_bytes = to_image(fig, format="png", scale=2)
 
         if cluster_values:
-            image_bytes2 = to_image(fig2, format="png", scale=2)
             display(
                 Image(
                     image_bytes,
@@ -161,6 +161,11 @@ def plot_split_segments(
                 width=width + len(size_data.index) * 30,
             )
     else:
+        if return_fig:
+            if cluster_values:
+                return [fig, fig2]
+            else:
+                return fig
         fig.show()
         if cluster_values:
             fig2.show()
@@ -294,7 +299,10 @@ def plot_segments(
             )
     else:
         if return_fig:
-            return fig
+            if cluster_values:
+                return [fig, fig2]
+            else:
+                return fig
         else:
             fig.show()
             if cluster_values:
@@ -363,7 +371,8 @@ def plot_waterfall(
     height: int = 1000,
     cluster_values: bool=False,
     cluster_key_width: int = 180,
-    cluster_value_width: int = 318
+    cluster_value_width: int = 318,
+    return_fig: bool = False
 ):
     """
     Plot waterfall and Bar for explain_changes
@@ -419,6 +428,11 @@ def plot_waterfall(
             # Display the static image in the Jupyter notebook
             display(Image(image_bytes, width=width, height=height))
     else:
+        if return_fig:
+            if cluster_values:
+                return [fig, fig2]
+            else:
+                return fig
         fig.show()
         if cluster_values:
             fig2.show()
