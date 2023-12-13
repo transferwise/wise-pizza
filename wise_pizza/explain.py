@@ -122,7 +122,7 @@ def explain_changes_in_totals(
     how: str = "totals",
     force_add_up: bool = False,
     constrain_signs: bool = True,
-    cluster_values: bool=False,
+    cluster_values: bool = False,
     verbose: int = 0,
 ):
     """
@@ -218,7 +218,7 @@ def explain_changes_in_totals(
             cluster_values=cluster_values,
             cluster_key_width=cluster_key_width,
             cluster_value_width=cluster_value_width,
-            return_fig=return_fig
+            return_fig=return_fig,
         )
         return sp
 
@@ -252,7 +252,7 @@ def explain_changes_in_totals(
             cluster_values=cluster_values,
             cluster_key_width=cluster_key_width,
             cluster_value_width=cluster_value_width,
-            return_fig=return_fig
+            return_fig=return_fig,
         )
         sf.task = "changes in totals"
         return sf
@@ -271,7 +271,7 @@ def explain_levels(
     verbose=0,
     force_add_up: bool = False,
     constrain_signs: bool = True,
-    cluster_values: bool=False
+    cluster_values: bool = False,
 ):
     """
     Find segments whose average is most different from the global one
@@ -318,7 +318,7 @@ def explain_levels(
         verbose=verbose,
         force_add_up=force_add_up,
         constrain_signs=constrain_signs,
-        cluster_values=cluster_values
+        cluster_values=cluster_values,
     )
 
     for s in sf.segments:
@@ -334,7 +334,7 @@ def explain_levels(
         return_fig=return_fig,
         cluster_values=cluster_values,
         cluster_key_width=cluster_key_width,
-        cluster_value_width=cluster_value_width
+        cluster_value_width=cluster_value_width,
     )
     sf.task = "levels"
     return sf

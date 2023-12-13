@@ -20,10 +20,10 @@ def plot_split_segments(
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
-    cluster_values: bool=False,
+    cluster_values: bool = False,
     cluster_key_width: int = 180,
     cluster_value_width: int = 318,
-    return_fig: bool = False
+    return_fig: bool = False,
 ):
     """
     Plot split segments for explain_changes: split_fits
@@ -126,15 +126,15 @@ def plot_split_segments(
 
         # Create a table trace with specified column widths
         table_trace = go.Table(
-            header=dict(values=['Cluster', 'Segments']),
+            header=dict(values=["Cluster", "Segments"]),
             cells=dict(values=[keys, values]),
-            columnwidth=[key_column_width, value_column_width]
+            columnwidth=[key_column_width, value_column_width],
         )
 
         # Create a layout
-        layout = go.Layout(title='Relevant cluster names',
-                           title_x=0  # Center the title
-                           )
+        layout = go.Layout(
+            title="Relevant cluster names", title_x=0  # Center the title
+        )
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
@@ -177,9 +177,9 @@ def plot_segments(
     width: int = 2000,
     height: int = 500,
     return_fig: bool = False,
-    cluster_values: bool=False,
-    cluster_key_width: int  = 180,
-    cluster_value_width: int = 318
+    cluster_values: bool = False,
+    cluster_key_width: int = 180,
+    cluster_value_width: int = 318,
 ):
     """
     Plot segments for explain_levels
@@ -257,15 +257,15 @@ def plot_segments(
 
         # Create a table trace with specified column widths
         table_trace = go.Table(
-            header=dict(values=['Cluster', 'Segments']),
+            header=dict(values=["Cluster", "Segments"]),
             cells=dict(values=[keys, values]),
-            columnwidth=[key_column_width, value_column_width]
+            columnwidth=[key_column_width, value_column_width],
         )
 
         # Create a layout
-        layout = go.Layout(title='Relevant cluster names',
-                           title_x=0  # Center the title
-                           )
+        layout = go.Layout(
+            title="Relevant cluster names", title_x=0  # Center the title
+        )
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
@@ -284,13 +284,7 @@ def plot_segments(
                     width=width + len(sf.segment_labels) * 30,
                 )
             )
-            display(
-                Image(
-                    image_bytes2,
-                    height=height,
-                    width=width
-                )
-            )
+            display(Image(image_bytes2, height=height, width=width))
         else:
             return Image(
                 image_bytes,
@@ -307,6 +301,7 @@ def plot_segments(
             fig.show()
             if cluster_values:
                 fig2.show()
+
 
 def waterfall_args(sf: SliceFinder):
     """
@@ -369,10 +364,10 @@ def plot_waterfall(
     plot_is_static: bool = False,
     width: int = 1000,
     height: int = 1000,
-    cluster_values: bool=False,
+    cluster_values: bool = False,
     cluster_key_width: int = 180,
     cluster_value_width: int = 318,
-    return_fig: bool = False
+    return_fig: bool = False,
 ):
     """
     Plot waterfall and Bar for explain_changes
@@ -405,15 +400,15 @@ def plot_waterfall(
 
         # Create a table trace with specified column widths
         table_trace = go.Table(
-            header=dict(values=['Cluster', 'Segments']),
+            header=dict(values=["Cluster", "Segments"]),
             cells=dict(values=[keys, values]),
-            columnwidth=[key_column_width, value_column_width]
+            columnwidth=[key_column_width, value_column_width],
         )
 
         # Create a layout
-        layout = go.Layout(title='Relevant cluster names',
-                           title_x=0  # Center the title
-                           )
+        layout = go.Layout(
+            title="Relevant cluster names", title_x=0  # Center the title
+        )
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
