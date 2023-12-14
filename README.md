@@ -151,7 +151,7 @@ Please see the full example [here](https://github.com/transferwise/wise-pizza/bl
 ## Streamlit app
 In the root directory of this repository, there is a Streamlit app. This is an interface that allows you to upload your own files and run analyses, as you saw in the Jupyter Notebook provided as an example.
 
-To run it after "pip install wise-pizza" (available in wise-pizza==0.2.2+) you should just do this in the terminal:
+To run it after "pip install wise-pizza" (available in wise-pizza==0.2.3+) you should just do this in the terminal:
 ```Python
 run_wise_pizza_streamlit
 ```
