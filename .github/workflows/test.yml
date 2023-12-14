@@ -28,12 +28,5 @@ jobs:
       - name: Install dependencies
         run: make venv
 
-      - name: Testing (without coverage)
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" == "Linux" ]; then
-            source venv/bin/activate
-          elif [ "${{ runner.os }}" == "Windows" ]; then
-            venv\Scripts\activate
-          fi
-          pytest tests/test_fit.py
+      - name: Testing
+        run: py.test --cov wise_pizza --cov-fail-under=60 --cov-report=term-missing
