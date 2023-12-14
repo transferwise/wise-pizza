@@ -30,9 +30,9 @@ jobs:
 
       - name: Testing (without coverage)
         run: |
-          if [ "${{ runner.os }}" == "Linux" ]; then
+          if ($env:RUNNER_OS -eq "Linux") {
             source venv/bin/activate
-          elif [ "${{ runner.os }}" == "Windows" ]; then
-            venv\Scripts\activate
-          fi
+          } elseif ($env:RUNNER_OS -eq "Windows") {
+            venv\Scripts\Activate
+          }
           pytest tests/test_fit.py
