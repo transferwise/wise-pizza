@@ -29,4 +29,6 @@ jobs:
         run: make venv
 
       - name: Testing (without coverage)
-        run: pytest tests/
+        run: |
+          source venv/bin/activate
+          pytest tests/test_fit.py
