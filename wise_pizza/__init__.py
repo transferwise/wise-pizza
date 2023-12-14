@@ -3,3 +3,7 @@ from wise_pizza.explain import (
     explain_changes_in_totals,
     explain_changes_in_average,
 )
+
+from wise_pizza.streamlit_app import (
+    run_streamlit_app,
+)
