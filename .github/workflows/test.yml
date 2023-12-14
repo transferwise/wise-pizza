@@ -29,10 +29,11 @@ jobs:
         run: make venv
 
       - name: Testing (without coverage)
+        shell: bash
         run: |
-          if ($env:RUNNER_OS -eq "Linux") {
+          if [ "${{ runner.os }}" == "Linux" ]; then
             source venv/bin/activate
-          } elseif ($env:RUNNER_OS -eq "Windows") {
-            venv\Scripts\Activate
-          }
+          elif [ "${{ runner.os }}" == "Windows" ]; then
+            venv\Scripts\activate
+          fi
           pytest tests/test_fit.py
