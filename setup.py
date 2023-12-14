@@ -5,7 +5,7 @@ with open('README.md') as f:
 
 setup(
     name="wise-pizza",
-    version="0.2.2",
+    version="0.2.3",
     description="A library to find and visualise the most interesting slices in multidimensional data",
     long_description=long_description,
     long_description_content_type='text/markdown',
