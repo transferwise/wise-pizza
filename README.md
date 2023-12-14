@@ -151,11 +151,17 @@ Please see the full example [here](https://github.com/transferwise/wise-pizza/bl
 ## Streamlit app
 In the root directory of this repository, there is a Streamlit app. This is an interface that allows you to upload your own files and run analyses, as you saw in the Jupyter Notebook provided as an example.
 
-To run this, you need to:
+To run it after "pip install wise-pizza" (available in wise-pizza==0.2.2+) you should just do this in the terminal:
+```Python
+run_wise_pizza_streamlit
+```
+It will open the streamlit app.
+
+To run this from the github version, you need to:
 1. Create a virtual environment (e.g. using pyenv)
 2. Activate the virtual environment
 3. Run `pip -r requirements.txt` before running, to install necessary dependencies
-4. Run `streamlit run streamlit_app.py` to run Streamlit
+4. Run `streamlit run wise_pizza/streamlit_app.py` to run Streamlit
 
 ### Docker container
 
