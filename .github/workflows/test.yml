@@ -29,4 +29,4 @@ jobs:
         run: make venv
 
       - name: Testing
-        run: py.test --cov wise_pizza --cov-fail-under=60 --cov-report=term-missing
+        run: make test
