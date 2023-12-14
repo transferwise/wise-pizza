@@ -28,5 +28,5 @@ jobs:
       - name: Install dependencies
         run: make venv
 
-      - name: Testing and coverage
-        run: make slowcov
+      - name: Testing (without coverage)
+        run: pytest tests/
