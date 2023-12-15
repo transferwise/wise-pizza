@@ -424,7 +424,6 @@ def explain_timeseries(
         force_add_up=force_add_up,
         constrain_signs=constrain_signs,
         cluster_values=cluster_values,
-        cluster_values=cluster_values,
     )
 
     # TODO: insert back the normalized bits?
