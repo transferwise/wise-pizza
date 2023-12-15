@@ -34,6 +34,8 @@ Sometimes, rather than explaining the change in totals from one period to the ne
     - [Comparison between two datasets](#understanding-differences-in-two-time-periods-or-two-dataframes)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Streamlit app](#streamlit-app)
+    - [Docker container](#docker-container)
 - [For Developers](#for-developers)
  - [Tests](#testing)
 
@@ -121,6 +123,12 @@ sf1 = explain_changes_in_average(
 
 ![plot](https://github.com/transferwise/wise-pizza/blob/main/docs/explain_changes_in_average(totals).png?raw=True)
 
+***In addition to single-value slices, consider slices that consist of a
+    group of segments from the same dimension with similar naive averages***
+For that goal you can use cluster_values=True parameter.
+
+![plot](https://github.com/transferwise/wise-pizza/blob/main/docs/cluster_values.png?raw=True)
+
 And then you can visualize differences:
 
 ```Python
@@ -132,7 +140,44 @@ And check segments:
 ```Python
 sf.segments
 ```
+
+if you use cluster values, you can also check relevant cluster names:
+```Python
+sf.relevant_cluster_names
+```
+
 Please see the full example [here](https://github.com/transferwise/wise-pizza/blob/main/notebooks/Finding%20interesting%20segments.ipynb)
+
+## Streamlit app
+In the root directory of this repository, there is a Streamlit app. This is an interface that allows you to upload your own files and run analyses, as you saw in the Jupyter Notebook provided as an example.
+
+To run it after "pip install wise-pizza" (available in wise-pizza==0.2.3+) you should just do this in the terminal:
+```Python
+run_wise_pizza_streamlit
+```
+It will open the streamlit app.
+
+To run this from the github version, you need to:
+1. Create a virtual environment (e.g. using pyenv)
+2. Activate the virtual environment
+3. Run `pip -r requirements.txt` before running, to install necessary dependencies
+4. Run `streamlit run wise_pizza/streamlit_app.py` to run Streamlit
+
+### Docker container
+
+We created a Docker container that makes it easier to deploy this solution elsewhere
+
+You need to first: Create the Docker image
+Create the Docker image
+
+```Python
+docker build -t streamlit .      
+```
+And then simply run the image
+
+```Python
+docker run -p 8501:8501 streamlit    
+```
 
 ## For Developers
 

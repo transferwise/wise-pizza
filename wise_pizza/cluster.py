@@ -25,6 +25,7 @@ def guided_kmeans(X: np.ndarray, power_transform: bool = True) -> np.ndarray:
 
     best_score = -1
     best_labels = None
+    best_n = -1
     # If we allow 2 clusters, it almost always just splits positive vs negative - boring!
     for n_clusters in range(3, int(len(X) / 2) + 1):
         cluster_labels = KMeans(n_clusters=n_clusters, init="k-means++", n_init=10).fit_predict(X)
