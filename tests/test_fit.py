@@ -11,6 +11,7 @@ from wise_pizza.explain import explain_changes_in_average, explain_changes_in_to
 from wise_pizza.segment_data import SegmentData
 from wise_pizza.solver import solve_lasso, solve_lp
 from wise_pizza.time import create_time_basis
+from wise_pizza.plotting import plot_time
 
 np.random.seed(42)
 
@@ -189,6 +190,8 @@ def test_synthetic_ts_template(nan_percent: float):
     print("***")
     for s in sf.segments:
         print(s)
+
+    plot_time(sf)
 
     assert abs(sf.segments[0]["coef"] - 300) < 2
     assert abs(sf.segments[1]["coef"] - 100) < 2

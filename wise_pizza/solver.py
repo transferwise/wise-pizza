@@ -12,6 +12,7 @@ def solve_lasso(
     constrain_signs=False,
     verbose=None,
     drop_last_row=True,
+    fit_intercept=False
 ):
     """
     Lasso-based finder of unusual segments
@@ -33,7 +34,7 @@ def solve_lasso(
 
     lasso_args = {
         "max_iter": int(1e5),
-        "fit_intercept": False,
+        "fit_intercept": fit_intercept,
         "selection": "random",
         "positive": constrain_signs,  # forces the coefficients to be positive if True,
         "random_state": 42,
@@ -60,7 +61,7 @@ def solve_lasso(
     return lasso
 
 
-def solve_lp(X, y, alpha, constrain_signs=False, verbose=None, drop_last_row=True):
+def solve_lp(X, y, alpha, constrain_signs=False, verbose=None, drop_last_row=True, fit_intercept:bool=False):
     """
     LP-based finder of unusual segments
     @param X: Matrix describing the segments

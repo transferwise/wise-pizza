@@ -6,7 +6,7 @@ import pandas as pd
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
-from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall
+from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time
 from wise_pizza.slicer import SliceFinder, SlicerPair
 from wise_pizza.utils import diff_dataset, prepare_df
 from wise_pizza.time import create_time_basis, strip_out_baseline
@@ -347,7 +347,7 @@ def explain_timeseries(
     total_name: str,
     time_name: str,
     size_name: Optional[str] = None,
-    min_segments: int = 10,
+    min_segments: int = 5,
     max_segments: int = None,
     min_depth: int = 1,
     max_depth: int = 2,
@@ -355,7 +355,7 @@ def explain_timeseries(
     verbose:bool=False,
     force_add_up: bool = False,
     constrain_signs: bool = True,
-    cluster_values: bool = True,
+    cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None
 ):
     """
@@ -395,13 +395,11 @@ def explain_timeseries(
     if time_basis is None:
         time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims)
 
-    # df = strip_out_baseline(
+    # df, baseline = strip_out_baseline(
     #     df,
     #     dims=dims,
     #     total_name=total_name,
     #     size_name=size_name,
-    #     time_name=time_name,
-    #     basis=time_basis,
     # )
 
     # This block is pointless as we just normalized each sub-segment to zero average across time
@@ -409,6 +407,7 @@ def explain_timeseries(
     df["_target"] = df[total_name] - df[size_name] * average
 
     sf = SliceFinder()
+    sf.global_average = average
     sf.fit(
         df[dims],
         df["_target"],
@@ -431,13 +430,13 @@ def explain_timeseries(
         s["naive_avg"] += average
         s["total"] += average * s["seg_size"]
     # print(average)
-    sf.reg.intercept_ = average
-    sf.plot = lambda plot_is_static=False, width=2000, height=500, return_fig=False: plot_segments(
+    sf.reg.intercept_ += average
+    sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False: plot_time(
         sf,
-        plot_is_static=plot_is_static,
+        # plot_is_static=plot_is_static,
         width=width,
         height=height,
-        return_fig=return_fig,
+        # return_fig=return_fig,
     )
-    sf.task = "levels"
+    sf.task = "time"
     return sf

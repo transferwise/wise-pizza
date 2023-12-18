@@ -148,7 +148,12 @@ class SliceFinder:
         if time_col is not None:
             self.time_basis = {}
             for c in time_basis.columns:
-                self.time_basis[c] = csc_matrix(dim_df[c].values.reshape((-1,1)))
+                this_ts = dim_df[c].values.reshape((-1,1))
+                max_val = np.abs(this_ts).max()
+                # take all the values a nudge away from zero so we can divide by them later
+                this_ts[np.abs(this_ts) < 1e-6 * max_val] =  1e-6 * max_val
+                self.time_basis[c] = csc_matrix(this_ts)
+            self.time = dim_df["__time"].values
         else:
             self.time_basis = None
 
@@ -187,6 +192,7 @@ class SliceFinder:
                     ]
 
         dim_df = dim_df[dims] # if time_col is None else dims + ["__time"]]
+        self.dim_df = dim_df
 
         # lazy calculation of the dummy matrix (calculation can be very slow)
         if (
@@ -220,17 +226,33 @@ class SliceFinder:
             adding_up_regularizer=force_add_up,
             constrain_signs=constrain_signs,
         )
+        predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(-1,)
+        davg = (predict*self.weights).sum()/self.weights.sum()
+        self.reg.intercept_ = -davg
 
-        self.segments = [{"segment": self.col_defs[i]} for i in self.nonzeros]
-        wgts = np.array(np.abs(Xw[:, self.nonzeros]).sum(axis=0))[0]
+        self.segments = [{"segment": self.col_defs[i], "index": i} for i in self.nonzeros]
+
+        wgts = np.array((np.abs(Xw[:, self.nonzeros])>0).sum(axis=0))[0]
 
         for i, s in enumerate(self.segments):
+            segment_def = s["segment"]
+            this_vec = self.X[:, s["index"]].toarray().reshape(-1, )
+            if "time" in segment_def:
+                # Divide out the time profile mult - we've made sure it's always nonzero
+                time_mult = self.time_basis[segment_def["time"]].toarray().reshape(-1, )
+                dummy = (this_vec / time_mult).astype(int).astype(np.float64)
+            else:
+                dummy = this_vec
+
+            this_wgts = self.weights * dummy
+            wgt = this_wgts.sum()
+            # assert wgt == wgts[i]
             s["coef"] = self.reg.coef_[i]
-            s["impact"] = s["coef"] * wgts[i]
-            s["avg_impact"] = s["impact"] / sum(wgts)
-            s["total"] = (self.totals * self.X[:, self.nonzeros[i]]).sum()
-            s["seg_size"] = wgts[i]
-            s["naive_avg"] = s["total"] / wgts[i]
+            s["impact"] = s["coef"] * (np.abs(this_vec)*self.weights).sum()
+            s["avg_impact"] = s["impact"] / sum(self.weights)
+            s["total"] = (self.totals * dummy).sum()
+            s["seg_size"] = wgt
+            s["naive_avg"] = s["total"] / wgt
 
         self.segments = self.order_segments(self.segments)
 

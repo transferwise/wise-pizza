@@ -16,9 +16,9 @@ def create_time_basis(
     const = np.ones(len(t))
     linear = np.cumsum(const)
     linear -= linear.mean()  # now orthogonal to const
-    col_names = ["Intercept", "Slope"]
+    col_names = ["Flat", "Slope"]
 
-    dummies = [const, linear]
+    dummies = [const/1e5, linear]
 
     if include_breaks:
         for i in range(1, len(t)):

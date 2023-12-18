@@ -104,7 +104,7 @@ def sparse_dummy_matrix(
     clusters: Optional[Dict[str, Sequence[str]]] = None,
     cluster_names: Optional[Dict[str, str]] = None,
     time_basis: Optional[pd.DataFrame] = None,
-    max_out_size: int = 100000
+    max_out_size: int = 10000
 ):
     # generate a sparse dummy matrix based on all the combinations
     if force_dim is None:
@@ -181,7 +181,7 @@ def sparse_dummy_matrix(
         yield mat, defs
 
 
-def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> List[Dict[str, str]]:
+def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> np.ndarray:
     # Look at all possible combinations of dimension values for the chosen dimensions
     if len(used_dims) == 1:
         return np.array(dims_dict[used_dims[0]]).reshape(-1, 1)

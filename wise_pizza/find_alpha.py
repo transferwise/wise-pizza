@@ -208,10 +208,11 @@ def find_alpha(
     reg = solve(
         X_filt,
         y,
-        1e-3 * alpha,
+        1e-3 * min(alpha, 1.0),
         constrain_signs=constrain_signs,
         verbose=verbose,
         drop_last_row=adding_up_regularizer,
+        # fit_intercept=not use_proj
     )
     return reg, nonzeros
 
