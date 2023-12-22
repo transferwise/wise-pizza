@@ -1,9 +1,14 @@
-from sklearn.linear_model import Lasso
+from sklearn.linear_model import Lasso, OrthogonalMatchingPursuit, LinearRegression
 import numpy as np
 import copy
 from scipy.sparse import issparse
 from scipy.optimize import linprog
 
+def solve_omp(X, y, n_nonzero_coeffs:int, fit_intercept=False, **kwargs):
+    omp = OrthogonalMatchingPursuit(n_nonzero_coefs=n_nonzero_coeffs, fit_intercept=fit_intercept).fit(X, y)
+    nonzeros = np.nonzero(omp.coef_)[0]
+    reg = LinearRegression(fit_intercept=fit_intercept).fit(X[:, nonzeros], y)
+    return reg, nonzeros
 
 def solve_lasso(
     X,

@@ -351,7 +351,7 @@ def explain_timeseries(
     max_segments: int = None,
     min_depth: int = 1,
     max_depth: int = 2,
-    solver: str="lasso",
+    solver: str="omp",
     verbose:bool=False,
     force_add_up: bool = False,
     constrain_signs: bool = False,
@@ -393,7 +393,18 @@ def explain_timeseries(
     # strip out constants and possibly linear trends for each dimension combination
     baseline_dims = 1
     if time_basis is None:
-        time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims)
+        time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims, include_breaks=True)
+        dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
+        chosen_cols = []
+        num_breaks = 1
+        for i in range(1, num_breaks+1):
+            chosen_cols.append(dtrend_cols[int(i*len(dtrend_cols)/(num_breaks+1))])
+        pre_basis = time_basis[list(time_basis.columns[:2]) + chosen_cols].copy()
+        # TODO: fix this bug
+        for c in chosen_cols:
+            pre_basis[c+"_a"] = pre_basis["Slope"] - pre_basis[c]
+
+        print("yay!")
 
     df = average_over_time(
         df,
@@ -413,7 +424,7 @@ def explain_timeseries(
         df[dims],
         df["_target"],
         time_col=df[time_name],
-        time_basis=time_basis,
+        time_basis=pre_basis,
         weights=df[size_name],
         min_segments=min_segments,
         max_segments=max_segments,

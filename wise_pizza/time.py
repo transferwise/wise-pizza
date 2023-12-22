@@ -4,9 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-def create_time_basis(
-    time_values: Union[pd.DataFrame, np.ndarray], include_breaks: bool = False, baseline_dims: int = 1
-):
+def create_time_basis(time_values: Union[pd.DataFrame, np.ndarray], include_breaks: int = 0, baseline_dims: int = 1):
     if baseline_dims != 1:
         raise NotImplementedError
     if isinstance(time_values, pd.DataFrame):
@@ -18,17 +16,18 @@ def create_time_basis(
     linear -= linear.mean()  # now orthogonal to const
     col_names = ["Flat", "Slope"]
 
-    dummies = [const/1e5, linear]
+    dummies = [const / 1e5, linear]
 
     if include_breaks:
         for i in range(1, len(t)):
             dummy = np.ones(len(t))
             dummy[:i] = 0
             dummies.append(dummy - dummy.mean())
-            col_names.append(f"{t[i].astype('datetime64[M]').astype(str)}_step")
+            #TODO: force date format
+            col_names.append(f"{t[i]}_step")
             cum_dummy = np.cumsum(dummy)
             dummies.append(cum_dummy - cum_dummy.mean())
-            col_names.append(f"{t[i].astype('datetime64[M]').astype(str)}_dtrend")
+            col_names.append(f"{t[i]}_dtrend")
 
     dummies = np.stack(dummies)
     out = pd.DataFrame(index=t, columns=col_names, data=dummies.T)
@@ -36,7 +35,8 @@ def create_time_basis(
 
 
 def average_over_time(
-    df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str) -> pd.DataFrame:
+    df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str
+) -> pd.DataFrame:
     avgs = df[dims + [total_name, size_name]].groupby(dims, as_index=False).sum()
 
     avgs["avg"] = avgs[total_name] / avgs[size_name]
@@ -44,5 +44,5 @@ def average_over_time(
     joined["total_adjustment"] = joined[size_name] * joined["avg"]
     out = joined[dims + [total_name, size_name, time_name, "total_adjustment"]]
     tmp = out[dims + [total_name, "total_adjustment"]].groupby(dims).sum()
-    assert (tmp[total_name]-tmp["total_adjustment"]).abs().sum() < 1e-6 * df[total_name].abs().max()
+    assert (tmp[total_name] - tmp["total_adjustment"]).abs().sum() < 1e-6 * df[total_name].abs().max()
     return out
