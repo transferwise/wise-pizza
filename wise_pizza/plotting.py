@@ -428,30 +428,39 @@ def plot_waterfall(
             fig2.show()
 
 
-def plot_time(sf: SliceFinder,
-              width: int = 1000,
-              height: int = 1000,
-              ):
+def plot_time(sf: SliceFinder, width: int = 1000, height: int = 1000, y_adj: np.ndarray = 0.0):
     dummies = []
     # calculate the total approximation (var*coeff),
     # throw in the global average
     this_X = sf.X[:, sf.nonzeros].toarray()
     pred_avg = sf.reg.predict(this_X)
-    df = pd.DataFrame(
-        {"totals": sf.totals + sf.global_average*sf.weights, "weights": sf.weights, "Regr totals": pred_avg * sf.weights, "time": sf.time}
-    )
-    seg_names = [str(s["segment"]) for s in sf.segments] + ["Leftover", "All"]
-    sub_titles = [[f"Totals of {s} ", f"Averages of {s}" ] for s in seg_names]
+    pred_total = pred_avg * sf.weights + y_adj
+
+    df = pd.DataFrame({"totals": sf.totals + y_adj, "weights": sf.weights, "Regr totals": pred_total, "time": sf.time})
+    seg_names = ["All"] + [str(s["segment"]) for s in sf.segments]
+    sub_titles = [[f"Totals of {s} ", f"Averages of {s}"] for s in seg_names]
     sub_titles = sum(sub_titles, start=[])
 
-    fig = make_subplots(rows=len(sf.segments) + 2, cols=2, subplot_titles=sub_titles)
+    fig = make_subplots(rows=len(sf.segments) + 1, cols=2, subplot_titles=sub_titles)
     for i, s in enumerate(sf.segments):
         # Get the segment definition
         segment_def = s["segment"]
-        this_vec = sf.X[:, s["index"]].toarray().reshape(-1,)
+        this_vec = (
+            sf.X[:, s["index"]]
+            .toarray()
+            .reshape(
+                -1,
+            )
+        )
         if "time" in segment_def:
             # Divide out the time profile mult - we've made sure it's always nonzero
-            time_mult = sf.time_basis[segment_def["time"]].toarray().reshape(-1,)
+            time_mult = (
+                sf.time_basis[segment_def["time"]]
+                .toarray()
+                .reshape(
+                    -1,
+                )
+            )
             dummy = (this_vec / time_mult).astype(int).astype(np.float64)
         else:
             dummy = this_vec
@@ -469,17 +478,17 @@ def plot_time(sf: SliceFinder,
         df[f"Seg {i+1}"] = this_vec * s["coef"]
         df[f"Seg {i+1}"] *= df["weights"]
 
-        agg_df = df[dummy==1.0].groupby("time", as_index=False).sum()
+        agg_df = df[dummy == 1.0].groupby("time", as_index=False).sum()
         # Create subplots
         simple_ts_plot(
             fig,
             agg_df["time"],
             agg_df["totals"],
             agg_df["weights"],
-            reg_seg = agg_df[f"Seg {i+1}"],
+            reg_seg=agg_df[f"Seg {i+1}"],
             seg_name=str(s["segment"]),
             reg_totals=agg_df["Regr totals"],
-            row_num=i + 1,
+            row_num=i + 2,
         )
     # Show the actuals for stuff not in segments
     outside = np.abs(sum(dummies)) < 1e-8
@@ -489,32 +498,22 @@ def plot_time(sf: SliceFinder,
 
     simple_ts_plot(
         fig,
-        left["time"],
-        left["totals"],
-        left["weights"],
-        seg_name="Data in none of the segments",
-        row_num=len(sf.segments) + 1
-    )
-
-    simple_ts_plot(
-        fig,
         all_data["time"],
         all_data["totals"],
         all_data["weights"],
         reg_totals=all_data["Regr totals"],
+        leftover_totals=left["totals"],
+        leftover_avgs = left["totals"]/left["weights"],
         seg_name="All data",
-        row_num=len(sf.segments) + 2
+        row_num=1,
     )
-
 
     for i in range(len(fig.layout.annotations)):
         fig.layout.annotations[i].font.size = 10
         # Show plot
-    fig.update_layout(title_text=f"Actuals vs explanation by segment",
-                      showlegend=True,
-                      width=width,
-                      height=height)
+    fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
     fig.show()
+
 
 def naive_dummy(dim_df, seg_def):
     dummy = np.ones(len(dim_df))
@@ -524,19 +523,40 @@ def naive_dummy(dim_df, seg_def):
         dummy[dim_df[col].values != val] = 0
     return dummy
 
-def simple_ts_plot(fig, time, totals, weights, seg_name: str, reg_totals=None, reg_seg = None, row_num=1):
+
+def simple_ts_plot(
+    fig,
+    time,
+    totals,
+    weights,
+    seg_name: str,
+    reg_totals=None,
+    leftover_totals=None,
+    leftover_avgs=None,
+    reg_seg=None,
+    row_num=1,
+):
     # Add bar and line chart to the first subplot
     fig.add_trace(go.Bar(x=time, y=totals, name="Totals"), row=row_num, col=1)
     if reg_totals is not None:
         fig.add_trace(go.Scatter(x=time, y=reg_totals, mode="lines", name="Regr Totals"), row=row_num, col=1)
     if reg_seg is not None:
-        fig.add_trace(go.Scatter(x=time, y=reg_seg, mode="lines", name="Segment Totals contribution"), row=row_num, col=1)
+        fig.add_trace(
+            go.Scatter(x=time, y=reg_seg, mode="lines", name="Segment Totals contribution"), row=row_num, col=1
+        )
+    if leftover_totals is not None:
+        fig.add_trace(go.Bar(x=time, y=leftover_totals, name="Leftover Totals"), row=row_num, col=1)
+
     # Add bar and line chart to the second subplot
     fig.add_trace(go.Bar(x=time, y=totals / weights, name="Average"), row=row_num, col=2)
     if reg_totals is not None:
         fig.add_trace(go.Scatter(x=time, y=reg_totals / weights, mode="lines", name="Regr Avg"), row=row_num, col=2)
     if reg_seg is not None:
-        fig.add_trace(go.Scatter(x=time, y=reg_seg / weights, mode="lines", name="Segment Avg contribution"), row=row_num, col=2)
+        fig.add_trace(
+            go.Scatter(x=time, y=reg_seg / weights, mode="lines", name="Segment Avg contribution"), row=row_num, col=2
+        )
+    if leftover_avgs is not None:
+        fig.add_trace(go.Bar(x=time, y=leftover_avgs, name="Leftover Averages"), row=row_num, col=2)
 
     # Update layout
 

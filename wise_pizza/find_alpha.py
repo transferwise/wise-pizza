@@ -139,6 +139,8 @@ def find_alpha(
     if verbose:
         print_errors(np.zeros(X.shape[1]))
 
+    mat = mat.toarray()
+
     while len(nonzeros) < min_nonzeros:
         alpha /= 2
         reg = solve(

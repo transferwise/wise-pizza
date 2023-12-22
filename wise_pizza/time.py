@@ -35,18 +35,14 @@ def create_time_basis(
     return out
 
 
-def strip_out_baseline(
-    df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str,  basis: pd.DataFrame, vectors_to_strip: int = 1
-) -> pd.DataFrame:
-    if vectors_to_strip != 1:
-        raise NotImplementedError
-        # TODO: implement stripping out larger baselines, eg intercept + trend
-
+def average_over_time(
+    df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str) -> pd.DataFrame:
     avgs = df[dims + [total_name, size_name]].groupby(dims, as_index=False).sum()
+
     avgs["avg"] = avgs[total_name] / avgs[size_name]
     joined = pd.merge(df, avgs[dims + ["avg"]], on=dims)
-    joined[total_name] -= joined[size_name] * joined["avg"]
-    out = joined[dims + [total_name, size_name, time_name]]
-    tmp = out.groupby(dims).sum()
-    assert tmp[total_name].abs().sum() < 1e-6 * df[total_name].abs().max()
+    joined["total_adjustment"] = joined[size_name] * joined["avg"]
+    out = joined[dims + [total_name, size_name, time_name, "total_adjustment"]]
+    tmp = out[dims + [total_name, "total_adjustment"]].groupby(dims).sum()
+    assert (tmp[total_name]-tmp["total_adjustment"]).abs().sum() < 1e-6 * df[total_name].abs().max()
     return out

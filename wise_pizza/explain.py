@@ -9,7 +9,7 @@ warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time
 from wise_pizza.slicer import SliceFinder, SlicerPair
 from wise_pizza.utils import diff_dataset, prepare_df
-from wise_pizza.time import create_time_basis, strip_out_baseline
+from wise_pizza.time import create_time_basis, average_over_time
 
 
 def explain_changes_in_average(
@@ -354,7 +354,7 @@ def explain_timeseries(
     solver: str="lasso",
     verbose:bool=False,
     force_add_up: bool = False,
-    constrain_signs: bool = True,
+    constrain_signs: bool = False,
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None
 ):
@@ -395,16 +395,17 @@ def explain_timeseries(
     if time_basis is None:
         time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims)
 
-    # df, baseline = strip_out_baseline(
-    #     df,
-    #     dims=dims,
-    #     total_name=total_name,
-    #     size_name=size_name,
-    # )
+    df = average_over_time(
+        df,
+        dims=dims,
+        total_name=total_name,
+        size_name=size_name,
+        time_name = time_name
+    )
 
     # This block is pointless as we just normalized each sub-segment to zero average across time
     average = df[total_name].sum() / df[size_name].sum()
-    df["_target"] = df[total_name] - df[size_name] * average
+    df["_target"] = df[total_name] - df["total_adjustment"]
 
     sf = SliceFinder()
     sf.global_average = average
@@ -430,13 +431,14 @@ def explain_timeseries(
         s["naive_avg"] += average
         s["total"] += average * s["seg_size"]
     # print(average)
-    sf.reg.intercept_ += average
+    # sf.reg.intercept_ += average
     sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False: plot_time(
         sf,
         # plot_is_static=plot_is_static,
         width=width,
         height=height,
         # return_fig=return_fig,
+        y_adj=df["total_adjustment"]
     )
     sf.task = "time"
     return sf
