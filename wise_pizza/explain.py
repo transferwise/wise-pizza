@@ -396,7 +396,7 @@ def explain_timeseries(
         time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims, include_breaks=True)
         dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
         chosen_cols = []
-        num_breaks = 1
+        num_breaks = 2
         for i in range(1, num_breaks+1):
             chosen_cols.append(dtrend_cols[int(i*len(dtrend_cols)/(num_breaks+1))])
         pre_basis = time_basis[list(time_basis.columns[:2]) + chosen_cols].copy()
@@ -420,6 +420,8 @@ def explain_timeseries(
 
     sf = SliceFinder()
     sf.global_average = average
+    sf.total_name = total_name
+    sf.size_name = size_name
     sf.fit(
         df[dims],
         df["_target"],
@@ -443,13 +445,14 @@ def explain_timeseries(
         s["total"] += average * s["seg_size"]
     # print(average)
     # sf.reg.intercept_ += average
-    sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False: plot_time(
+    sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False, average_name=None : plot_time(
         sf,
         # plot_is_static=plot_is_static,
         width=width,
         height=height,
         # return_fig=return_fig,
-        y_adj=df["total_adjustment"]
+        y_adj=df["total_adjustment"],
+        average_name=average_name
     )
     sf.task = "time"
     return sf

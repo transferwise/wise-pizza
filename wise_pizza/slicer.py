@@ -226,9 +226,13 @@ class SliceFinder:
             adding_up_regularizer=force_add_up,
             constrain_signs=constrain_signs,
         )
+        # Leave this code for legacy purposes
         predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(-1,)
         davg = (predict*self.weights).sum()/self.weights.sum()
         self.reg.intercept_ = -davg
+
+        # And this is the version to use later in TS plotting
+        self.predict_totals = self.reg.predict(Xw[:, self.nonzeros]).reshape(-1,)
 
         self.segments = [{"segment": self.col_defs[i], "index": i} for i in self.nonzeros]
 
@@ -248,7 +252,7 @@ class SliceFinder:
             wgt = this_wgts.sum()
             # assert wgt == wgts[i]
             s["coef"] = self.reg.coef_[i]
-            s["impact"] = s["coef"] * (np.abs(this_vec)*self.weights).sum()
+            s["impact"] = np.abs(s["coef"]) * (np.abs(this_vec)*self.weights).sum()
             s["avg_impact"] = s["impact"] / sum(self.weights)
             s["total"] = (self.totals * dummy).sum()
             s["seg_size"] = wgt

@@ -428,17 +428,25 @@ def plot_waterfall(
             fig2.show()
 
 
-def plot_time(sf: SliceFinder, width: int = 1000, height: int = 1000, y_adj: np.ndarray = 0.0):
+def plot_time(
+    sf: SliceFinder, width: int = 1000, height: int = 1000, y_adj: np.ndarray = 0.0, average_name: Optional[str] = None
+):
+    if average_name is None:
+        average_name = "Averages"
     dummies = []
     # calculate the total approximation (var*coeff),
     # throw in the global average
     this_X = sf.X[:, sf.nonzeros].toarray()
-    pred_avg = sf.reg.predict(this_X)
-    pred_total = pred_avg * sf.weights + y_adj
+    pred_total = sf.predict_totals + y_adj
+    pred_avg = pred_total / sf.weights
+    # pred_avg = sf.reg.predict(this_X)
+    # pred_total = pred_avg * sf.weights + y_adj
 
-    df = pd.DataFrame({"totals": sf.totals + y_adj, "weights": sf.weights, "Regr totals": pred_total, "time": sf.time})
+    df = pd.DataFrame(
+        {"totals": sf.totals + y_adj, "weights": sf.weights, "Regr totals": sf.predict_totals + y_adj, "time": sf.time}
+    )
     seg_names = ["All"] + [str(s["segment"]) for s in sf.segments]
-    sub_titles = [[f"Totals of {s} ", f"Averages of {s}"] for s in seg_names]
+    sub_titles = [[f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names]
     sub_titles = sum(sub_titles, start=[])
 
     fig = make_subplots(rows=len(sf.segments) + 1, cols=2, subplot_titles=sub_titles)
@@ -465,18 +473,19 @@ def plot_time(sf: SliceFinder, width: int = 1000, height: int = 1000, y_adj: np.
         else:
             dummy = this_vec
 
-        elems = np.unique(dummy)
-        assert len(elems) == 2
-        assert 1.0 in elems
-        assert 0.0 in elems
+        # elems = np.unique(dummy)
+        # assert len(elems) == 2
+        # assert 1.0 in elems
+        # assert 0.0 in elems
 
         # # This was a safety check; slow and no longer needed
         # dummy = naive_dummy(sf.dim_df, segment_def)
+        if "time" in segment_def and len(segment_def) > 1:
+            dummies.append(dummy)
 
-        dummies.append(dummy)
         # calculate the projection of this segment's coeff onto row
-        df[f"Seg {i+1}"] = this_vec * s["coef"]
-        df[f"Seg {i+1}"] *= df["weights"]
+        df[f"Seg {i+1}_avg"] = this_vec * s["coef"]
+        df[f"Seg {i+1}"] = df[f"Seg {i+1}_avg"]*df["weights"]
 
         agg_df = df[dummy == 1.0].groupby("time", as_index=False).sum()
         # Create subplots
@@ -503,7 +512,7 @@ def plot_time(sf: SliceFinder, width: int = 1000, height: int = 1000, y_adj: np.
         all_data["weights"],
         reg_totals=all_data["Regr totals"],
         leftover_totals=left["totals"],
-        leftover_avgs = left["totals"]/left["weights"],
+        leftover_avgs=left["totals"] / left["weights"],
         seg_name="All data",
         row_num=1,
     )
@@ -560,7 +569,7 @@ def simple_ts_plot(
 
     # Update layout
 
-    fig.update_xaxes(title_text="Time", row=row_num, col=1)
-    fig.update_xaxes(title_text="Time", row=row_num, col=2)
+    # fig.update_xaxes(title_text="Time", row=row_num, col=1)
+    # fig.update_xaxes(title_text="Time", row=row_num, col=2)
     # fig.update_yaxes(title_text=f"Totals for {seg_name}", row=row_num, col=1)
     # fig.update_yaxes(title_text=f"Averages for {seg_name}", row=row_num, col=2)

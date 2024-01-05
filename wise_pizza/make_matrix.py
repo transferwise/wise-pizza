@@ -135,6 +135,13 @@ def sparse_dummy_matrix(
 
     defs = []
     mats = []
+
+    # Add raw time vectors
+    if time_basis is not None:
+        for b_name, b_mat in time_basis.items():
+            defs.append({"time": b_name})
+            mats.append(b_mat)
+
     # Go over all possible depths
     for num_dims in tqdm(dims_range) if verbose else dims_range:
         # for each depth, sample the possible dimension combinations
