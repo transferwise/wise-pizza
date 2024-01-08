@@ -57,7 +57,7 @@ class SliceFinder:
         @return:
         """
         sel = HeuristicSelector(
-            max_cols=max_cols, weights=self.weights, totals=self.totals, time_basis=time_basis
+            max_cols=max_cols, weights=self.weights, totals=self.totals, time_basis=time_basis, verbose=self.verbose
         )
 
         # This returns the candidate vectors in batches
@@ -69,13 +69,14 @@ class SliceFinder:
             force_dim=force_dim,
             clusters=clusters,
             cluster_names=self.cluster_names,
-            time_basis=time_basis
+            time_basis=time_basis,
         )
 
         # do pre-filter recursively
         for this_X, these_col_defs in basis_iter:
             X_out, col_defs_out = sel(this_X, these_col_defs)
-
+        if self.verbose:
+            print("Preselection done!")
         return X_out, col_defs_out
 
     def fit(
@@ -148,10 +149,10 @@ class SliceFinder:
         if time_col is not None:
             self.time_basis = {}
             for c in time_basis.columns:
-                this_ts = dim_df[c].values.reshape((-1,1))
+                this_ts = dim_df[c].values.reshape((-1, 1))
                 max_val = np.abs(this_ts).max()
                 # take all the values a nudge away from zero so we can divide by them later
-                this_ts[np.abs(this_ts) < 1e-6 * max_val] =  1e-6 * max_val
+                this_ts[np.abs(this_ts) < 1e-6 * max_val] = 1e-6 * max_val
                 self.time_basis[c] = csc_matrix(this_ts)
             self.time = dim_df["__time"].values
         else:
@@ -166,32 +167,21 @@ class SliceFinder:
         self.cluster_names = {}
         if cluster_values:
             for dim in dims:
-                if (
-                    len(dim_df[dim].unique()) >= 6
-                ):  # otherwise what's the point in clustering?
-                    grouped_df = (
-                        dim_df[[dim, "totals", "weights"]]
-                        .groupby(dim, as_index=False)
-                        .sum()
-                    )
+                if len(dim_df[dim].unique()) >= 6:  # otherwise what's the point in clustering?
+                    grouped_df = dim_df[[dim, "totals", "weights"]].groupby(dim, as_index=False).sum()
                     grouped_df["avg"] = grouped_df["totals"] / grouped_df["weights"]
                     grouped_df["cluster"], _ = guided_kmeans(grouped_df["avg"])
                     pre_clusters = (
-                        grouped_df[["cluster", dim]]
-                        .groupby("cluster")
-                        .agg({dim: lambda x: "@@".join(x)})
-                        .values
+                        grouped_df[["cluster", dim]].groupby("cluster").agg({dim: lambda x: "@@".join(x)}).values
                     )
                     # filter out clusters with only one element
                     these_clusters = [c for c in pre_clusters.reshape(-1) if "@@" in c]
                     # create short cluster names
                     for i, c in enumerate(these_clusters):
                         self.cluster_names[f"{dim}_cluster_{i+1}"] = c
-                    clusters[dim] = [
-                        c for c in self.cluster_names.keys() if c.startswith(dim)
-                    ]
+                    clusters[dim] = [c for c in self.cluster_names.keys() if c.startswith(dim)]
 
-        dim_df = dim_df[dims] # if time_col is None else dims + ["__time"]]
+        dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
         self.dim_df = dim_df
 
         # lazy calculation of the dummy matrix (calculation can be very slow)
@@ -216,6 +206,8 @@ class SliceFinder:
 
         Xw = csc_matrix(diags(self.weights) @ self.X)
 
+        if self.verbose:
+            print("Starting solve!")
         self.reg, self.nonzeros = find_alpha(
             Xw,
             self.totals,
@@ -226,24 +218,42 @@ class SliceFinder:
             adding_up_regularizer=force_add_up,
             constrain_signs=constrain_signs,
         )
+        if self.verbose:
+            print("Solver done!!")
         # Leave this code for legacy purposes
-        predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(-1,)
-        davg = (predict*self.weights).sum()/self.weights.sum()
+        predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(
+            -1,
+        )
+        davg = (predict * self.weights).sum() / self.weights.sum()
         self.reg.intercept_ = -davg
 
         # And this is the version to use later in TS plotting
-        self.predict_totals = self.reg.predict(Xw[:, self.nonzeros]).reshape(-1,)
+        self.predict_totals = self.reg.predict(Xw[:, self.nonzeros]).reshape(
+            -1,
+        )
 
         self.segments = [{"segment": self.col_defs[i], "index": i} for i in self.nonzeros]
 
-        wgts = np.array((np.abs(Xw[:, self.nonzeros])>0).sum(axis=0))[0]
+        wgts = np.array((np.abs(Xw[:, self.nonzeros]) > 0).sum(axis=0))[0]
 
         for i, s in enumerate(self.segments):
             segment_def = s["segment"]
-            this_vec = self.X[:, s["index"]].toarray().reshape(-1, )
+            this_vec = (
+                self.X[:, s["index"]]
+                .toarray()
+                .reshape(
+                    -1,
+                )
+            )
             if "time" in segment_def:
                 # Divide out the time profile mult - we've made sure it's always nonzero
-                time_mult = self.time_basis[segment_def["time"]].toarray().reshape(-1, )
+                time_mult = (
+                    self.time_basis[segment_def["time"]]
+                    .toarray()
+                    .reshape(
+                        -1,
+                    )
+                )
                 dummy = (this_vec / time_mult).astype(int).astype(np.float64)
             else:
                 dummy = this_vec
@@ -252,7 +262,7 @@ class SliceFinder:
             wgt = this_wgts.sum()
             # assert wgt == wgts[i]
             s["coef"] = self.reg.coef_[i]
-            s["impact"] = np.abs(s["coef"]) * (np.abs(this_vec)*self.weights).sum()
+            s["impact"] = np.abs(s["coef"]) * (np.abs(this_vec) * self.weights).sum()
             s["avg_impact"] = s["impact"] / sum(self.weights)
             s["total"] = (self.totals * dummy).sum()
             s["seg_size"] = wgt
@@ -285,11 +295,7 @@ class SliceFinder:
 
     @staticmethod
     def segment_to_str(segment: Dict[str, any]):
-        s = {
-            k: v
-            for k, v in segment.items()
-            if k not in ["coef", "impact", "avg_impact"]
-        }
+        s = {k: v for k, v in segment.items() if k not in ["coef", "impact", "avg_impact"]}
         return str(s)
 
     @property

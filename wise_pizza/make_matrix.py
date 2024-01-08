@@ -104,7 +104,7 @@ def sparse_dummy_matrix(
     clusters: Optional[Dict[str, Sequence[str]]] = None,
     cluster_names: Optional[Dict[str, str]] = None,
     time_basis: Optional[pd.DataFrame] = None,
-    max_out_size: int = 10000
+    max_out_size: int = 1e6 # threshold num of elements in out matrix
 ):
     # generate a sparse dummy matrix based on all the combinations
     if force_dim is None:
@@ -146,6 +146,8 @@ def sparse_dummy_matrix(
     for num_dims in tqdm(dims_range) if verbose else dims_range:
         # for each depth, sample the possible dimension combinations
         for these_dims in itertools.combinations(dims, num_dims):
+            if verbose:
+                print(f"Processing {these_dims}")
             if num_dims == 1 and these_dims[0] == "Change from":
                 continue
             if force_dim is None:
@@ -162,6 +164,8 @@ def sparse_dummy_matrix(
                 defs += these_defs
             else:
                 for b_name, b_mat in time_basis.items():
+                    if verbose:
+                        print(f"Processing {b_name}")
                     re_defs = copy.deepcopy(these_defs)
                     for d in re_defs:
                         d["time"] = b_name
@@ -174,13 +178,25 @@ def sparse_dummy_matrix(
                     mats.append(re_mat)
                     defs+=re_defs
 
-
-            if len(defs) >= max_out_size:
-                mat = hstack(mats)
-                assert len(defs) == mat.shape[1]
-                yield mat, defs
-                defs =[]
-                mats = []
+                    test_size = len(defs)*mats[0].shape[0]
+                    if test_size >= max_out_size:
+                        if verbose:
+                            print(f"Threshold reached at {test_size}, dumping")
+                        mat = hstack(mats)
+                        assert len(defs) == mat.shape[1]
+                        yield mat, defs
+                        defs =[]
+                        mats = []
+            if len(mats):
+                test_size = len(defs) * mats[0].shape[0]
+                if test_size >= max_out_size:
+                    if verbose:
+                        print(f"Threshold reached at {test_size}, dumping")
+                    mat = hstack(mats)
+                    assert len(defs) == mat.shape[1]
+                    yield mat, defs
+                    defs = []
+                    mats = []
     # mop up
     if len(defs):
         mat = hstack(mats)
