@@ -1,4 +1,5 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from dataclasses import dataclass
 
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -427,23 +428,35 @@ def plot_waterfall(
         if cluster_values:
             fig2.show()
 
+@dataclass
+class PlotData:
+    df: pd.DataFrame
+    nonflat_segments: List[Dict[str, Any]]
+    global_time_label: str
+    total_name: str
+    average_name: str
 
 def plot_time(
     sf: SliceFinder, width: int = 1000, height: int = 1000, y_adj: np.ndarray = 0.0, average_name: Optional[str] = None
 ):
+    plot_data = preprocess_for_ts_plot(sf, average_name)
+    plot_single_ts(plot_data, width, height)
+
+def plot_ts_pair(sf_wgt: SliceFinder, sf_totals: SliceFinder, width, height, average_name: str = None
+                 ):
+    wgt_plot_data= preprocess_for_ts_plot(sf_wgt, average_name) # average name correct?
+    totals_plot_data = preprocess_for_ts_plot(sf_totals, average_name)
+    plot_dual_ts(wgt_plot_data, totals_plot_data, width, height)
+
+def plot_dual_ts(wgt_plot_data:PlotData, totals_plot_data: PlotData, width, height):
+    pass
+
+def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None ) -> PlotData:
     if average_name is None:
         average_name = "Averages"
-    dummies = []
-    # calculate the total approximation (var*coeff),
-    # throw in the global average
-    this_X = sf.X[:, sf.nonzeros].toarray()
-    pred_total = sf.predict_totals + y_adj
-    pred_avg = pred_total / sf.weights
-    # pred_avg = sf.reg.predict(this_X)
-    # pred_total = pred_avg * sf.weights + y_adj
 
     df = pd.DataFrame(
-        {"totals": sf.totals + y_adj, "weights": sf.weights, "Regr totals": sf.predict_totals + y_adj, "time": sf.time}
+        {"totals": sf.totals + sf.y_adj, "weights": sf.weights, "Regr totals": sf.predict_totals + sf.y_adj, "time": sf.time}
     )
     df["reg_time_profile"] = 0.0
 
@@ -455,7 +468,13 @@ def plot_time(
         # Get the segment definition
         segment_def = s["segment"]
         assert "time" in segment_def, "Each segment should have a time profile!"
-        this_vec = sf.X[:, s["index"]].toarray().reshape(-1,)
+        this_vec = (
+            sf.X[:, s["index"]]
+            .toarray()
+            .reshape(
+                -1,
+            )
+        )
         # calculate the impact of this segment's coefficient
         df[f"Seg {i+1}_avg"] = this_vec * s["coef"]
         df[f"Seg {i+1}"] = df[f"Seg {i+1}_avg"] * df["weights"]
@@ -465,7 +484,13 @@ def plot_time(
             nonflat_segments.append(s)
 
             # Divide out the time profile mult - we've made sure it's always nonzero
-            time_mult = sf.time_basis[segment_def["time"]].toarray().reshape(-1,)
+            time_mult = (
+                sf.time_basis[segment_def["time"]]
+                .toarray()
+                .reshape(
+                    -1,
+                )
+            )
             dummy = (this_vec / time_mult).astype(int).astype(np.float64)
             s["dummy"] = dummy
             s["plot_segment"] = f"Seg {i+1}"
@@ -473,7 +498,7 @@ def plot_time(
             assert len(elems) == 2
             assert 1.0 in elems
             assert 0.0 in elems
-            dummies.append(dummy) # will be used for determining the part not covered by segments
+
         elif len(segment_def) == 1:
             # Accumulate all pure time profiles into one
             df["reg_time_profile"] += df[f"Seg {i + 1}"]
@@ -481,18 +506,27 @@ def plot_time(
 
     # now create the plots
     if len(global_time_profile_names):
-        global_time_label = ", time:"+ ",".join(global_time_profile_names)
+        global_time_label = ", time:" + ",".join(global_time_profile_names)
     else:
         global_time_label = ""
 
-    seg_names = ["All" + global_time_label] + [str(s["segment"]) for s in nonflat_segments]
-    sub_titles = [[f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names]
+    plot_data = PlotData(df, nonflat_segments, global_time_label, sf.total_name, average_name)
+    return plot_data
+
+
+def plot_single_ts(
+    plotdata: PlotData,
+    width: int,
+    height: int,
+):
+    seg_names = ["All" + plotdata.global_time_label] + [str(s["segment"]) for s in plotdata.nonflat_segments]
+    sub_titles = [[f"{plotdata.total_name} for {s} ", f"{plotdata.average_name} for {s}"] for s in seg_names]
     sub_titles = sum(sub_titles, start=[])
 
-    fig = make_subplots(rows=len(nonflat_segments) + 1, cols=2, subplot_titles=sub_titles)
+    fig = make_subplots(rows=len(plotdata.nonflat_segments) + 1, cols=2, subplot_titles=sub_titles)
 
-    for i,s in enumerate(nonflat_segments):
-        agg_df = df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
+    for i, s in enumerate(plotdata.nonflat_segments):
+        agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
         # Create subplots
         simple_ts_plot(
             fig,
@@ -507,11 +541,10 @@ def plot_time(
         )
 
     # Show the actuals for stuff not in segments
-    outside = np.abs(sum(dummies)) < 1e-8
+    outside = np.abs(sum([s["dummy"] for s in plotdata.nonflat_segments])) < 1e-8
 
-
-    left = df[outside].groupby("time", as_index=False).sum()
-    all_data = df.groupby("time", as_index=False).sum()
+    left = plotdata.df[outside].groupby("time", as_index=False).sum()
+    all_data = plotdata.df.groupby("time", as_index=False).sum()
 
     simple_ts_plot(
         fig,
@@ -555,8 +588,6 @@ def simple_ts_plot(
     reg_seg=None,
     row_num=1,
     showlegend: bool = False,
-    totals_name: str = "Totals",
-    avg_name: str = "Averages",
 ):
     for col in [1, 2]:
         if col == 1:
@@ -565,7 +596,13 @@ def simple_ts_plot(
             mult = 1 / weights
 
         fig.add_trace(
-            go.Bar(x=time, y=totals * mult, name=f"Actuals", marker=dict(color="orange"), showlegend=showlegend and col==1),
+            go.Bar(
+                x=time,
+                y=totals * mult,
+                name=f"Actuals",
+                marker=dict(color="orange"),
+                showlegend=showlegend and col == 1,
+            ),
             row=row_num,
             col=col,
         )
@@ -577,7 +614,7 @@ def simple_ts_plot(
                     mode="lines",
                     name=f"Regression",
                     line=dict(color="blue"),
-                    showlegend=showlegend and col==1,
+                    showlegend=showlegend and col == 1,
                 ),
                 row=row_num,
                 col=col,
@@ -586,11 +623,11 @@ def simple_ts_plot(
             fig.add_trace(
                 go.Scatter(
                     x=time,
-                    y=reg_seg*mult,
+                    y=reg_seg * mult,
                     mode="lines",
                     name=f"Segment's reg contribution",
                     line=dict(color="teal"),
-                    showlegend=showlegend  and col==1,
+                    showlegend=showlegend and col == 1,
                 ),
                 row=row_num,
                 col=col,
@@ -602,7 +639,7 @@ def simple_ts_plot(
                     y=leftover_totals if col == 1 else leftover_avgs,
                     name=f"Leftover actuals",
                     marker=dict(color="purple"),
-                    showlegend=col==1
+                    showlegend=col == 1,
                 ),
                 row=row_num,
                 col=col,

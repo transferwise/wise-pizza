@@ -6,7 +6,7 @@ import pandas as pd
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
-from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time
+from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time, plot_ts_pair
 from wise_pizza.slicer import SliceFinder, SlicerPair
 from wise_pizza.utils import diff_dataset, prepare_df
 from wise_pizza.time import create_time_basis, average_over_time
@@ -351,12 +351,69 @@ def explain_timeseries(
     max_segments: int = None,
     min_depth: int = 1,
     max_depth: int = 2,
-    solver: str="omp",
-    verbose:bool=False,
+    solver: str = "omp",
+    verbose: bool = False,
     force_add_up: bool = False,
     constrain_signs: bool = False,
     cluster_values: bool = False,
-    time_basis: Optional[pd.DataFrame] = None
+    time_basis: Optional[pd.DataFrame] = None,
+):
+    sf_totals = _explain_timeseries(
+        df=df,
+        dims=dims,
+        total_name=total_name,
+        time_name=time_name,
+        size_name=size_name,
+        min_segments=min_segments,
+        max_segments=max_segments,
+        min_depth=min_depth,
+        max_depth=max_depth,
+        solver=solver,
+        verbose=verbose,
+        cluster_values=cluster_values,
+        time_basis=time_basis,
+    )
+
+    if True: #not size_name:
+        return sf_totals
+
+    sf_wgt = _explain_timeseries(
+        df=df,
+        dims=dims,
+        total_name=size_name,
+        time_name=time_name,
+        min_segments=min_segments,
+        max_segments=max_segments,
+        min_depth=min_depth,
+        max_depth=max_depth,
+        solver=solver,
+        verbose=verbose,
+        cluster_values=cluster_values,
+        time_basis=time_basis,
+    )
+
+    out = SlicerPair(sf_wgt, sf_totals)
+    out.plot = plot_ts_pair
+    out.task = "time with weights"
+    return out
+
+
+def _explain_timeseries(
+    df: pd.DataFrame,
+    dims: List[str],
+    total_name: str,
+    time_name: str,
+    size_name: Optional[str] = None,
+    min_segments: int = 5,
+    max_segments: int = None,
+    min_depth: int = 1,
+    max_depth: int = 2,
+    solver: str = "omp",
+    verbose: bool = False,
+    force_add_up: bool = False,
+    constrain_signs: bool = False,
+    cluster_values: bool = False,
+    time_basis: Optional[pd.DataFrame] = None,
 ):
     """
     Find segments whose average is most different from the global one
@@ -382,9 +439,7 @@ def explain_timeseries(
     # replace NaN values in numeric columns with zeros
     # replace NaN values in categorical columns with the column name + "_unknown"
     # Group by dims + [time_name]
-    df = prepare_df(
-        df, dims, total_name=total_name, size_name=size_name, time_name=time_name
-    )
+    df = prepare_df(df, dims, total_name=total_name, size_name=size_name, time_name=time_name)
 
     if size_name is None:
         size_name = "size"
@@ -397,22 +452,16 @@ def explain_timeseries(
         dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
         chosen_cols = []
         num_breaks = 2
-        for i in range(1, num_breaks+1):
-            chosen_cols.append(dtrend_cols[int(i*len(dtrend_cols)/(num_breaks+1))])
+        for i in range(1, num_breaks + 1):
+            chosen_cols.append(dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))])
         pre_basis = time_basis[list(time_basis.columns[:2]) + chosen_cols].copy()
         # TODO: fix this bug
         for c in chosen_cols:
-            pre_basis[c+"_a"] = pre_basis["Slope"] - pre_basis[c]
+            pre_basis[c + "_a"] = pre_basis["Slope"] - pre_basis[c]
 
         print("yay!")
 
-    df = average_over_time(
-        df,
-        dims=dims,
-        total_name=total_name,
-        size_name=size_name,
-        time_name = time_name
-    )
+    df = average_over_time(df, dims=dims, total_name=total_name, size_name=size_name, time_name=time_name)
 
     # This block is pointless as we just normalized each sub-segment to zero average across time
     average = df[total_name].sum() / df[size_name].sum()
@@ -422,6 +471,7 @@ def explain_timeseries(
     sf.global_average = average
     sf.total_name = total_name
     sf.size_name = size_name
+    sf.y_adj = df["total_adjustment"].values
     sf.fit(
         df[dims],
         df["_target"],
@@ -445,14 +495,13 @@ def explain_timeseries(
         s["total"] += average * s["seg_size"]
     # print(average)
     # sf.reg.intercept_ += average
-    sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False, average_name=None : plot_time(
+    sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False, average_name=None: plot_time(
         sf,
         # plot_is_static=plot_is_static,
         width=width,
         height=height,
         # return_fig=return_fig,
-        y_adj=df["total_adjustment"],
-        average_name=average_name
+        average_name=average_name,
     )
     sf.task = "time"
     return sf
