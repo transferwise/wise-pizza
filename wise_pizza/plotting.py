@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass
 
 import plotly.graph_objects as go
@@ -435,18 +435,69 @@ class PlotData:
     global_time_label: str
     total_name: str
     average_name: str
+    sub_titles: List[str]
 
 def plot_time(
-    sf: SliceFinder, width: int = 1000, height: int = 1000, y_adj: np.ndarray = 0.0, average_name: Optional[str] = None
+    sf: SliceFinder, width: int = 1000, height: int = 1000, average_name: Optional[str] = None
 ):
     plot_data = preprocess_for_ts_plot(sf, average_name)
-    plot_single_ts(plot_data, width, height)
+    fig = make_subplots(rows=len(plot_data.nonflat_segments) + 1, cols=2, subplot_titles=plot_data.sub_titles)
+
+    plot_single_ts(plot_data, fig, col_nums=(1,2))
+
+    for i in range(len(fig.layout.annotations)):
+        fig.layout.annotations[i].font.size = 10
+
+    fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
+    fig.show()
 
 def plot_ts_pair(sf_wgt: SliceFinder, sf_totals: SliceFinder, width, height, average_name: str = None
                  ):
     wgt_plot_data= preprocess_for_ts_plot(sf_wgt, average_name) # average name correct?
     totals_plot_data = preprocess_for_ts_plot(sf_totals, average_name)
     plot_dual_ts(wgt_plot_data, totals_plot_data, width, height)
+def plot_single_ts(
+    plotdata: PlotData,
+    fig,
+    col_nums: Tuple[int, int] = (1, 2)
+):
+    for i, s in enumerate(plotdata.nonflat_segments):
+        agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
+        # Create subplots
+        simple_ts_plot(
+            fig,
+            agg_df["time"],
+            agg_df["totals"],
+            agg_df["weights"],
+            reg_seg=agg_df[s["plot_segment"]],
+            seg_name=str(s["segment"]),
+            reg_totals=agg_df["Regr totals"],
+            row_num=i + 2,
+            showlegend=False,
+            col_nums = col_nums
+        )
+
+    # Show the actuals for stuff not in segments
+    outside = np.abs(sum([s["dummy"] for s in plotdata.nonflat_segments])) < 1e-8
+
+    left = plotdata.df[outside].groupby("time", as_index=False).sum()
+    all_data = plotdata.df.groupby("time", as_index=False).sum()
+
+    simple_ts_plot(
+        fig,
+        all_data["time"],
+        all_data["totals"],
+        all_data["weights"],
+        reg_seg=all_data["reg_time_profile"],
+        reg_totals=all_data["Regr totals"],
+        leftover_totals=left["totals"],
+        leftover_avgs=left["totals"] / left["weights"],
+        seg_name="All data",
+        row_num=1,
+        showlegend=True,
+        col_nums=col_nums
+    )
+
 
 def plot_dual_ts(wgt_plot_data:PlotData, totals_plot_data: PlotData, width, height):
     pass
@@ -510,61 +561,14 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None )
     else:
         global_time_label = ""
 
-    plot_data = PlotData(df, nonflat_segments, global_time_label, sf.total_name, average_name)
+    seg_names = ["All" + global_time_label] + [str(s["segment"]) for s in nonflat_segments]
+    sub_titles = [[f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names]
+    sub_titles = sum(sub_titles, start=[])
+
+    plot_data = PlotData(df, nonflat_segments, global_time_label, sf.total_name, average_name, sub_titles)
     return plot_data
 
 
-def plot_single_ts(
-    plotdata: PlotData,
-    width: int,
-    height: int,
-):
-    seg_names = ["All" + plotdata.global_time_label] + [str(s["segment"]) for s in plotdata.nonflat_segments]
-    sub_titles = [[f"{plotdata.total_name} for {s} ", f"{plotdata.average_name} for {s}"] for s in seg_names]
-    sub_titles = sum(sub_titles, start=[])
-
-    fig = make_subplots(rows=len(plotdata.nonflat_segments) + 1, cols=2, subplot_titles=sub_titles)
-
-    for i, s in enumerate(plotdata.nonflat_segments):
-        agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
-        # Create subplots
-        simple_ts_plot(
-            fig,
-            agg_df["time"],
-            agg_df["totals"],
-            agg_df["weights"],
-            reg_seg=agg_df[s["plot_segment"]],
-            seg_name=str(s["segment"]),
-            reg_totals=agg_df["Regr totals"],
-            row_num=i + 2,
-            showlegend=False,
-        )
-
-    # Show the actuals for stuff not in segments
-    outside = np.abs(sum([s["dummy"] for s in plotdata.nonflat_segments])) < 1e-8
-
-    left = plotdata.df[outside].groupby("time", as_index=False).sum()
-    all_data = plotdata.df.groupby("time", as_index=False).sum()
-
-    simple_ts_plot(
-        fig,
-        all_data["time"],
-        all_data["totals"],
-        all_data["weights"],
-        reg_seg=all_data["reg_time_profile"],
-        reg_totals=all_data["Regr totals"],
-        leftover_totals=left["totals"],
-        leftover_avgs=left["totals"] / left["weights"],
-        seg_name="All data",
-        row_num=1,
-        showlegend=True,
-    )
-
-    for i in range(len(fig.layout.annotations)):
-        fig.layout.annotations[i].font.size = 10
-        # Show plot
-    fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
-    fig.show()
 
 
 def naive_dummy(dim_df, seg_def):
@@ -588,8 +592,9 @@ def simple_ts_plot(
     reg_seg=None,
     row_num=1,
     showlegend: bool = False,
+        col_nums: Tuple[int, int]=(1,2)
 ):
-    for col in [1, 2]:
+    for col in col_nums:
         if col == 1:
             mult = 1.0
         else:
@@ -601,7 +606,7 @@ def simple_ts_plot(
                 y=totals * mult,
                 name=f"Actuals",
                 marker=dict(color="orange"),
-                showlegend=showlegend and col == 1,
+                showlegend=showlegend and col == col_nums[0],
             ),
             row=row_num,
             col=col,
@@ -614,7 +619,7 @@ def simple_ts_plot(
                     mode="lines",
                     name=f"Regression",
                     line=dict(color="blue"),
-                    showlegend=showlegend and col == 1,
+                    showlegend=showlegend and col == col_nums[0],
                 ),
                 row=row_num,
                 col=col,
@@ -627,7 +632,7 @@ def simple_ts_plot(
                     mode="lines",
                     name=f"Segment's reg contribution",
                     line=dict(color="teal"),
-                    showlegend=showlegend and col == 1,
+                    showlegend=showlegend and col == col_nums[0],
                 ),
                 row=row_num,
                 col=col,
@@ -639,40 +644,10 @@ def simple_ts_plot(
                     y=leftover_totals if col == 1 else leftover_avgs,
                     name=f"Leftover actuals",
                     marker=dict(color="purple"),
-                    showlegend=col == 1,
+                    showlegend=col == col_nums[0],
                 ),
                 row=row_num,
                 col=col,
             )
 
-        # # Add bar and line chart to the second subplot
-        # fig.add_trace(
-        #     go.Bar(x=time, y=totals / weights, name="Average", marker=dict(color="brown")), row=row_num, col=2
-        # )
-        # if reg_totals is not None:
-        #     fig.add_trace(
-        #         go.Scatter(x=time, y=reg_totals / weights, mode="lines", name="Regr Avg", line=dict(color="blue")),
-        #         row=row_num,
-        #         col=2,
-        #     )
-        # if reg_seg is not None:
-        #     fig.add_trace(
-        #         go.Scatter(
-        #             x=time, y=reg_seg / weights, mode="lines", name="Segment contribution", line=dict(color="red")
-        #         ),
-        #         row=row_num,
-        #         col=2,
-        #     )
-        # if leftover_avgs is not None:
-        #     fig.add_trace(
-        #         go.Bar(x=time, y=leftover_avgs, name="Leftover actuals", marker=dict(color="purple")),
-        #         row=row_num,
-        #         col=2,
-        #     )
 
-        # Update layout
-
-        # fig.update_xaxes(title_text="Time", row=row_num, col=1)
-        # fig.update_xaxes(title_text="Time", row=row_num, col=2)
-        # fig.update_yaxes(title_text=f"Totals for {seg_name}", row=row_num, col=1)
-        # fig.update_yaxes(title_text=f"Averages for {seg_name}", row=row_num, col=2)
