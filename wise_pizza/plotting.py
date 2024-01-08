@@ -445,62 +445,70 @@ def plot_time(
     df = pd.DataFrame(
         {"totals": sf.totals + y_adj, "weights": sf.weights, "Regr totals": sf.predict_totals + y_adj, "time": sf.time}
     )
-    seg_names = ["All"] + [str(s["segment"]) for s in sf.segments]
-    sub_titles = [[f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names]
-    sub_titles = sum(sub_titles, start=[])
+    df["reg_time_profile"] = 0.0
 
-    fig = make_subplots(rows=len(sf.segments) + 1, cols=2, subplot_titles=sub_titles)
+    # do a pass over the segments, sorting them into time-only and rest
+    global_reg = 0.0
+    global_time_profile_names = []
+    nonflat_segments = []
     for i, s in enumerate(sf.segments):
         # Get the segment definition
         segment_def = s["segment"]
-        this_vec = (
-            sf.X[:, s["index"]]
-            .toarray()
-            .reshape(
-                -1,
-            )
-        )
-        if "time" in segment_def:
-            # Divide out the time profile mult - we've made sure it's always nonzero
-            time_mult = (
-                sf.time_basis[segment_def["time"]]
-                .toarray()
-                .reshape(
-                    -1,
-                )
-            )
-            dummy = (this_vec / time_mult).astype(int).astype(np.float64)
-        else:
-            dummy = this_vec
-
-        # elems = np.unique(dummy)
-        # assert len(elems) == 2
-        # assert 1.0 in elems
-        # assert 0.0 in elems
-
-        # # This was a safety check; slow and no longer needed
-        # dummy = naive_dummy(sf.dim_df, segment_def)
-        if "time" in segment_def and len(segment_def) > 1:
-            dummies.append(dummy)
-
-        # calculate the projection of this segment's coeff onto row
+        assert "time" in segment_def, "Each segment should have a time profile!"
+        this_vec = sf.X[:, s["index"]].toarray().reshape(-1,)
+        # calculate the impact of this segment's coefficient
         df[f"Seg {i+1}_avg"] = this_vec * s["coef"]
-        df[f"Seg {i+1}"] = df[f"Seg {i+1}_avg"]*df["weights"]
+        df[f"Seg {i+1}"] = df[f"Seg {i+1}_avg"] * df["weights"]
 
-        agg_df = df[dummy == 1.0].groupby("time", as_index=False).sum()
+        if len(segment_def) > 1:
+            # for segments that are not just a pure time profile
+            nonflat_segments.append(s)
+
+            # Divide out the time profile mult - we've made sure it's always nonzero
+            time_mult = sf.time_basis[segment_def["time"]].toarray().reshape(-1,)
+            dummy = (this_vec / time_mult).astype(int).astype(np.float64)
+            s["dummy"] = dummy
+            s["plot_segment"] = f"Seg {i+1}"
+            elems = np.unique(dummy)
+            assert len(elems) == 2
+            assert 1.0 in elems
+            assert 0.0 in elems
+            dummies.append(dummy) # will be used for determining the part not covered by segments
+        elif len(segment_def) == 1:
+            # Accumulate all pure time profiles into one
+            df["reg_time_profile"] += df[f"Seg {i + 1}"]
+            global_time_profile_names.append(segment_def["time"])
+
+    # now create the plots
+    if len(global_time_profile_names):
+        global_time_label = ", time:"+ ",".join(global_time_profile_names)
+    else:
+        global_time_label = ""
+
+    seg_names = ["All" + global_time_label] + [str(s["segment"]) for s in nonflat_segments]
+    sub_titles = [[f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names]
+    sub_titles = sum(sub_titles, start=[])
+
+    fig = make_subplots(rows=len(nonflat_segments) + 1, cols=2, subplot_titles=sub_titles)
+
+    for i,s in enumerate(nonflat_segments):
+        agg_df = df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
         # Create subplots
         simple_ts_plot(
             fig,
             agg_df["time"],
             agg_df["totals"],
             agg_df["weights"],
-            reg_seg=agg_df[f"Seg {i+1}"],
+            reg_seg=agg_df[s["plot_segment"]],
             seg_name=str(s["segment"]),
             reg_totals=agg_df["Regr totals"],
             row_num=i + 2,
+            showlegend=False,
         )
+
     # Show the actuals for stuff not in segments
     outside = np.abs(sum(dummies)) < 1e-8
+
 
     left = df[outside].groupby("time", as_index=False).sum()
     all_data = df.groupby("time", as_index=False).sum()
@@ -510,11 +518,13 @@ def plot_time(
         all_data["time"],
         all_data["totals"],
         all_data["weights"],
+        reg_seg=all_data["reg_time_profile"],
         reg_totals=all_data["Regr totals"],
         leftover_totals=left["totals"],
         leftover_avgs=left["totals"] / left["weights"],
         seg_name="All data",
         row_num=1,
+        showlegend=True,
     )
 
     for i in range(len(fig.layout.annotations)):
@@ -544,32 +554,88 @@ def simple_ts_plot(
     leftover_avgs=None,
     reg_seg=None,
     row_num=1,
+    showlegend: bool = False,
+    totals_name: str = "Totals",
+    avg_name: str = "Averages",
 ):
-    # Add bar and line chart to the first subplot
-    fig.add_trace(go.Bar(x=time, y=totals, name="Totals"), row=row_num, col=1)
-    if reg_totals is not None:
-        fig.add_trace(go.Scatter(x=time, y=reg_totals, mode="lines", name="Regr Totals"), row=row_num, col=1)
-    if reg_seg is not None:
+    for col in [1, 2]:
+        if col == 1:
+            mult = 1.0
+        else:
+            mult = 1 / weights
+
         fig.add_trace(
-            go.Scatter(x=time, y=reg_seg, mode="lines", name="Segment Totals contribution"), row=row_num, col=1
+            go.Bar(x=time, y=totals * mult, name=f"Actuals", marker=dict(color="orange"), showlegend=showlegend and col==1),
+            row=row_num,
+            col=col,
         )
-    if leftover_totals is not None:
-        fig.add_trace(go.Bar(x=time, y=leftover_totals, name="Leftover Totals"), row=row_num, col=1)
+        if reg_totals is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=time,
+                    y=reg_totals * mult,
+                    mode="lines",
+                    name=f"Regression",
+                    line=dict(color="blue"),
+                    showlegend=showlegend and col==1,
+                ),
+                row=row_num,
+                col=col,
+            )
+        if reg_seg is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=time,
+                    y=reg_seg*mult,
+                    mode="lines",
+                    name=f"Segment's reg contribution",
+                    line=dict(color="teal"),
+                    showlegend=showlegend  and col==1,
+                ),
+                row=row_num,
+                col=col,
+            )
+        if leftover_totals is not None:
+            fig.add_trace(
+                go.Bar(
+                    x=time,
+                    y=leftover_totals if col == 1 else leftover_avgs,
+                    name=f"Leftover actuals",
+                    marker=dict(color="purple"),
+                    showlegend=col==1
+                ),
+                row=row_num,
+                col=col,
+            )
 
-    # Add bar and line chart to the second subplot
-    fig.add_trace(go.Bar(x=time, y=totals / weights, name="Average"), row=row_num, col=2)
-    if reg_totals is not None:
-        fig.add_trace(go.Scatter(x=time, y=reg_totals / weights, mode="lines", name="Regr Avg"), row=row_num, col=2)
-    if reg_seg is not None:
-        fig.add_trace(
-            go.Scatter(x=time, y=reg_seg / weights, mode="lines", name="Segment Avg contribution"), row=row_num, col=2
-        )
-    if leftover_avgs is not None:
-        fig.add_trace(go.Bar(x=time, y=leftover_avgs, name="Leftover Averages"), row=row_num, col=2)
+        # # Add bar and line chart to the second subplot
+        # fig.add_trace(
+        #     go.Bar(x=time, y=totals / weights, name="Average", marker=dict(color="brown")), row=row_num, col=2
+        # )
+        # if reg_totals is not None:
+        #     fig.add_trace(
+        #         go.Scatter(x=time, y=reg_totals / weights, mode="lines", name="Regr Avg", line=dict(color="blue")),
+        #         row=row_num,
+        #         col=2,
+        #     )
+        # if reg_seg is not None:
+        #     fig.add_trace(
+        #         go.Scatter(
+        #             x=time, y=reg_seg / weights, mode="lines", name="Segment contribution", line=dict(color="red")
+        #         ),
+        #         row=row_num,
+        #         col=2,
+        #     )
+        # if leftover_avgs is not None:
+        #     fig.add_trace(
+        #         go.Bar(x=time, y=leftover_avgs, name="Leftover actuals", marker=dict(color="purple")),
+        #         row=row_num,
+        #         col=2,
+        #     )
 
-    # Update layout
+        # Update layout
 
-    # fig.update_xaxes(title_text="Time", row=row_num, col=1)
-    # fig.update_xaxes(title_text="Time", row=row_num, col=2)
-    # fig.update_yaxes(title_text=f"Totals for {seg_name}", row=row_num, col=1)
-    # fig.update_yaxes(title_text=f"Averages for {seg_name}", row=row_num, col=2)
+        # fig.update_xaxes(title_text="Time", row=row_num, col=1)
+        # fig.update_xaxes(title_text="Time", row=row_num, col=2)
+        # fig.update_yaxes(title_text=f"Totals for {seg_name}", row=row_num, col=1)
+        # fig.update_yaxes(title_text=f"Averages for {seg_name}", row=row_num, col=2)
