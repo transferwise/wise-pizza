@@ -74,7 +74,9 @@ class SliceFinder:
 
         # do pre-filter recursively
         for this_X, these_col_defs in basis_iter:
-            X_out, col_defs_out = sel(this_X, these_col_defs)
+            if this_X is not None:
+                X_out, col_defs_out = sel(this_X, these_col_defs)
+
         if self.verbose:
             print("Preselection done!")
         return X_out, col_defs_out

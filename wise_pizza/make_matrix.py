@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 from tqdm import tqdm
 import pandas as pd
-from scipy.sparse import csc_matrix, hstack
+from scipy.sparse import csc_matrix, hstack, diags
 
 
 def join_to_sparse(dim_df: pd.DataFrame, dim_name: str, verbose=0):
@@ -164,29 +164,35 @@ def sparse_dummy_matrix(
                 defs += these_defs
             else:
                 for b_name, b_mat in time_basis.items():
+                    # Multiply the dummies by the time profile
                     if verbose:
                         print(f"Processing {b_name}")
                     re_defs = copy.deepcopy(these_defs)
                     for d in re_defs:
                         d["time"] = b_name
 
-                    m = csc_matrix(np.ones(shape=(1, this_mat.shape[1])))
-                    re_basis = b_mat @ m
-                    re_mat = this_mat.multiply(re_basis)
+                    # let's split it even deeper to deal with very wide matrices
+                    step = 100
+                    for i in range(0, len(re_defs), step):
+                        end_ind = min(i+step, len(re_defs))
+                        defs_slice = re_defs[i:end_ind]
+                        mat_slice = this_mat[:, i:end_ind]
+                        re_mat = diags(b_mat.A.flatten()) @ mat_slice
+                        re_mat = csc_matrix(re_mat)
+                        assert len(defs_slice) == re_mat.shape[1]
 
-                    assert len(re_defs) == re_mat.shape[1]
-                    mats.append(re_mat)
-                    defs+=re_defs
+                        mats.append(re_mat)
+                        defs+=defs_slice
 
-                    test_size = len(defs)*mats[0].shape[0]
-                    if test_size >= max_out_size:
-                        if verbose:
-                            print(f"Threshold reached at {test_size}, dumping")
-                        mat = hstack(mats)
-                        assert len(defs) == mat.shape[1]
-                        yield mat, defs
-                        defs =[]
-                        mats = []
+                        test_size = len(defs)*mats[0].shape[0]
+                        if test_size >= max_out_size:
+                            if verbose:
+                                print(f"Threshold reached at {test_size}, dumping")
+                            mat = hstack(mats)
+                            assert len(defs) == mat.shape[1]
+                            yield mat, defs
+                            defs =[]
+                            mats = []
             if len(mats):
                 test_size = len(defs) * mats[0].shape[0]
                 if test_size >= max_out_size:
@@ -202,7 +208,8 @@ def sparse_dummy_matrix(
         mat = hstack(mats)
         assert len(defs) == mat.shape[1]
         yield mat, defs
-
+    else:
+        yield None, None
 
 def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> np.ndarray:
     # Look at all possible combinations of dimension values for the chosen dimensions
