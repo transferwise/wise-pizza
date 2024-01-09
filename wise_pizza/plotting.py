@@ -1,3 +1,4 @@
+import copy
 from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass
 
@@ -451,7 +452,11 @@ def plot_time(
     fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
     fig.show()
 
-def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None):
+def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fitted_weights: bool=False):
+    # if use_fitted_weights:
+    #     sf = copy.deepcopy(sf)
+    #     sf.s2.totals = (sf.s2.totals/sf.s2.weights)*sf.s1.totals
+    #     sf.s2.weights = sf.s1.totals
 
     wgt_plot_data = preprocess_for_ts_plot(sf.s1, average_name) # average name correct?
     totals_plot_data = preprocess_for_ts_plot(sf.s2, average_name)

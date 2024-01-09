@@ -393,8 +393,8 @@ def explain_timeseries(
     )
 
     out = SlicerPair(sf_wgt, sf_totals)
-    out.plot = lambda width=600, height=1200, average_name=None: plot_ts_pair(
-        out, width=width, height=height, average_name=average_name
+    out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
+        out, width=width, height=height, average_name=average_name, use_fitted_weights=use_fitted_weights
     )
     out.task = "time with weights"
     return out
