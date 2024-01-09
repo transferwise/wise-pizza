@@ -2,6 +2,7 @@ import copy
 import itertools
 from typing import Optional, List, Dict, Sequence
 from collections import defaultdict
+import math
 
 import numpy as np
 import scipy
@@ -104,7 +105,7 @@ def sparse_dummy_matrix(
     clusters: Optional[Dict[str, Sequence[str]]] = None,
     cluster_names: Optional[Dict[str, str]] = None,
     time_basis: Optional[pd.DataFrame] = None,
-    max_out_size: int = 1e6 # threshold num of elements in out matrix
+    max_out_size: int = 1e8,  # threshold num of elements in out matrix
 ):
     # generate a sparse dummy matrix based on all the combinations
     if force_dim is None:
@@ -119,7 +120,6 @@ def sparse_dummy_matrix(
     # drop dimensions with only one value, for clarity
     dims = [d for d in dims if len(dim_df[d].unique()) > 1]
 
-
     dims_range_min = min(len(dims), max(1, min_depth))
     dims_range_max = min(len(dims) + 1, max_depth + 1)
     dims_range = range(dims_range_min, dims_range_max)
@@ -131,7 +131,6 @@ def sparse_dummy_matrix(
         dummy_cache[d] = {this_def: this_mat[:, i : i + 1] for i, this_def in enumerate(these_defs)}
 
     dims_dict = {dim: list(dim_df[dim].unique()) + list(clusters[dim]) for dim in dim_df.columns}
-
 
     defs = []
     mats = []
@@ -172,9 +171,9 @@ def sparse_dummy_matrix(
                         d["time"] = b_name
 
                     # let's split it even deeper to deal with very wide matrices
-                    step = 100
+                    step = math.ceil(max_out_size / b_mat.shape[0])
                     for i in range(0, len(re_defs), step):
-                        end_ind = min(i+step, len(re_defs))
+                        end_ind = min(i + step, len(re_defs))
                         defs_slice = re_defs[i:end_ind]
                         mat_slice = this_mat[:, i:end_ind]
                         re_mat = diags(b_mat.A.flatten()) @ mat_slice
@@ -182,16 +181,16 @@ def sparse_dummy_matrix(
                         assert len(defs_slice) == re_mat.shape[1]
 
                         mats.append(re_mat)
-                        defs+=defs_slice
+                        defs += defs_slice
 
-                        test_size = len(defs)*mats[0].shape[0]
+                        test_size = len(defs) * mats[0].shape[0]
                         if test_size >= max_out_size:
                             if verbose:
                                 print(f"Threshold reached at {test_size}, dumping")
                             mat = hstack(mats)
                             assert len(defs) == mat.shape[1]
                             yield mat, defs
-                            defs =[]
+                            defs = []
                             mats = []
             if len(mats):
                 test_size = len(defs) * mats[0].shape[0]
@@ -210,6 +209,7 @@ def sparse_dummy_matrix(
         yield mat, defs
     else:
         yield None, None
+
 
 def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> np.ndarray:
     # Look at all possible combinations of dimension values for the chosen dimensions
