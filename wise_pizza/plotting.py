@@ -666,7 +666,7 @@ def simple_ts_plot(
                     y=leftover_totals if col == 1 else leftover_avgs,
                     name=f"Leftover actuals",
                     marker=dict(color="purple"),
-                    showlegend=col == col_nums[0],
+                    showlegend=showlegend and col == col_nums[0],
                 ),
                 row=row_num,
                 col=col,
