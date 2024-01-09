@@ -7,7 +7,7 @@ from plotly.io import to_image
 from plotly.subplots import make_subplots
 
 
-from wise_pizza.slicer import SliceFinder
+from wise_pizza.slicer import SliceFinder, SlicerPair
 
 pio.templates.default = "plotly_white"
 
@@ -451,14 +451,39 @@ def plot_time(
     fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
     fig.show()
 
-def plot_ts_pair(sf_wgt: SliceFinder, sf_totals: SliceFinder, width, height, average_name: str = None
-                 ):
-    wgt_plot_data= preprocess_for_ts_plot(sf_wgt, average_name) # average name correct?
-    totals_plot_data = preprocess_for_ts_plot(sf_totals, average_name)
-    plot_dual_ts(wgt_plot_data, totals_plot_data, width, height)
+def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None):
+
+    wgt_plot_data = preprocess_for_ts_plot(sf.s1, average_name) # average name correct?
+    totals_plot_data = preprocess_for_ts_plot(sf.s2, average_name)
+    num_rows = max(len(wgt_plot_data.nonflat_segments) + 1,len(totals_plot_data.nonflat_segments) + 1)
+    subplot_titles = []
+    for i in range(num_rows):
+        if 2*i < len(wgt_plot_data.sub_titles):
+            subplot_titles.append(wgt_plot_data.sub_titles[2*i])
+        else:
+            subplot_titles.append("")
+        if 2*i < len(totals_plot_data.sub_titles):
+            subplot_titles.append(totals_plot_data.sub_titles[2 * i + 1])
+            subplot_titles.append(totals_plot_data.sub_titles[2 * i ])
+        else:
+            subplot_titles.append("")
+            subplot_titles.append("")
+
+    fig = make_subplots(rows=num_rows, cols=3, subplot_titles=subplot_titles)
+    plot_single_ts(wgt_plot_data, fig, col_nums=(1, None), showlegend=False)
+    plot_single_ts(totals_plot_data, fig, col_nums=(3,2))
+
+    for i in range(len(fig.layout.annotations)):
+        fig.layout.annotations[i].font.size = 10
+
+    fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
+    fig.show()
+
+
 def plot_single_ts(
     plotdata: PlotData,
     fig,
+    showlegend: bool=True,
     col_nums: Tuple[int, int] = (1, 2)
 ):
     for i, s in enumerate(plotdata.nonflat_segments):
@@ -470,7 +495,6 @@ def plot_single_ts(
             agg_df["totals"],
             agg_df["weights"],
             reg_seg=agg_df[s["plot_segment"]],
-            seg_name=str(s["segment"]),
             reg_totals=agg_df["Regr totals"],
             row_num=i + 2,
             showlegend=False,
@@ -492,15 +516,11 @@ def plot_single_ts(
         reg_totals=all_data["Regr totals"],
         leftover_totals=left["totals"],
         leftover_avgs=left["totals"] / left["weights"],
-        seg_name="All data",
         row_num=1,
-        showlegend=True,
+        showlegend=showlegend,
         col_nums=col_nums
     )
 
-
-def plot_dual_ts(wgt_plot_data:PlotData, totals_plot_data: PlotData, width, height):
-    pass
 
 def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None ) -> PlotData:
     if average_name is None:
@@ -585,7 +605,6 @@ def simple_ts_plot(
     time,
     totals,
     weights,
-    seg_name: str,
     reg_totals=None,
     leftover_totals=None,
     leftover_avgs=None,
@@ -595,10 +614,13 @@ def simple_ts_plot(
         col_nums: Tuple[int, int]=(1,2)
 ):
     for col in col_nums:
-        if col == 1:
+        if col == col_nums[0]:
             mult = 1.0
         else:
             mult = 1 / weights
+
+        if col is None:
+            continue
 
         fig.add_trace(
             go.Bar(

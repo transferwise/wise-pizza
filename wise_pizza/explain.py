@@ -374,7 +374,7 @@ def explain_timeseries(
         time_basis=time_basis,
     )
 
-    if True: #not size_name:
+    if not size_name:
         return sf_totals
 
     sf_wgt = _explain_timeseries(
@@ -393,7 +393,9 @@ def explain_timeseries(
     )
 
     out = SlicerPair(sf_wgt, sf_totals)
-    out.plot = plot_ts_pair
+    out.plot = lambda width=600, height=1200, average_name=None: plot_ts_pair(
+        out, width=width, height=height, average_name=average_name
+    )
     out.task = "time with weights"
     return out
 
