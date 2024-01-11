@@ -121,10 +121,9 @@ def find_alpha(
     else:
         mat = X
         y = y_
-    mat = mat.toarray()
 
     if solver=="omp":
-        reg, nonzeros = solve_omp(mat, y, min_nonzeros)
+        reg, nonzeros = solve_omp(mat.toarray(), y, min_nonzeros)
         return reg, nonzeros
 
     alpha = 2 * max(y)

@@ -222,19 +222,22 @@ class SliceFinder:
         )
         if self.verbose:
             print("Solver done!!")
-        # Leave this code for legacy purposes
-        predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(
-            -1,
-        )
-        davg = (predict * self.weights).sum() / self.weights.sum()
-        self.reg.intercept_ = -davg
 
-        # And this is the version to use later in TS plotting
-        self.predict_totals = self.reg.predict(Xw[:, self.nonzeros]).reshape(
-            -1,
-        )
 
-        self.segments = [{"segment": self.col_defs[i], "index": i} for i in self.nonzeros]
+        if time_basis is not None: # it's a time series product
+            # Do we need this bit at all?
+            predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(
+                -1,
+            )
+            davg = (predict * self.weights).sum() / self.weights.sum()
+            self.reg.intercept_ = -davg
+
+            # And this is the version to use later in TS plotting
+            self.predict_totals = self.reg.predict(Xw[:, self.nonzeros]).reshape(
+                -1,
+            )
+
+        self.segments = [{"segment": self.col_defs[i], "index": int(i)} for i in self.nonzeros]
 
         wgts = np.array((np.abs(Xw[:, self.nonzeros]) > 0).sum(axis=0))[0]
 
