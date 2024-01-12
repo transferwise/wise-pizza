@@ -2,8 +2,7 @@ import pandas as pd
 from scipy.sparse import csc_matrix, hstack
 from typing import Optional
 import numpy as np
-import numba
-
+# import numba
 
 class HeuristicSelector:
     def __init__(
@@ -82,7 +81,8 @@ def get_metrics_new(X, y, w):
     return tvalues.reshape(-1), impact.reshape(-1)
 
 # This function for some reason is by far the slowest part of the code
-@numba.jit(nopython=True)  # Enable the JIT compiler with nopython mode for best performance
+# JIT didn't seem to help as all the calc is in the numpy binaries anyway
+# @numba.jit(nopython=True)  # Enable the JIT compiler with nopython mode for best performance
 def get_sigmasq(coeffs: np.ndarray, WX: np.ndarray, y: np.ndarray) -> np.ndarray:
     err = coeffs * WX - y
     sigmasq = (err * err).sum(axis=0)
