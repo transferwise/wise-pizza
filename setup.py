@@ -29,7 +29,7 @@ setup(
         "tqdm",
         "cloudpickle",
         "pivottablejs",
-        "streamlit==1.28.0"
+        "streamlit==1.30.0"
     ],
     extras_require={
         "test": [
