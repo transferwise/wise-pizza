@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Union, List, Dict, Sequence
+from typing import Optional, Union, List, Dict, Sequence, Callable
 from collections import defaultdict
 
 import numpy as np
@@ -319,6 +319,47 @@ class SliceFinder:
                     relevant_clusters[c] = self.cluster_names[c].replace("@@", ", ")
         return relevant_clusters
 
+    def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
+        return s["seg_avg"]*self.weights
+
+
+    @property
+    def actual_totals(self):
+        return self.totals + self.y_adj
+
+    @property
+    def predicted_totals(self):
+        return self.predict_totals + self.y_adj
+
+class TransformedSliceFinder(SliceFinder):
+    def __init__(self, sf: SliceFinder, inverse_transform: Optional[Callable] = None):
+        # For now, just use log(1+x) as transform, assume sf was fitted on transformed data
+        self.sf = sf
+        if inverse_transform is None:
+            self.it = lambda x: np.maximum(np.exp(x) -1, 0.0)
+        else:
+            self.it = inverse_transform
+
+        self.actual_avg = self.it(sf.actual_totals/sf.weights) # a_i
+        self.predicted_avg = self.it(self.sf.predicted_totals/self.sf.weights)
+        self.weights = sf.weights/(1+self.actual_avg)
+    @property
+    def actual_totals(self):
+        return self.actual_avg * self.weights
+
+    @property
+    def predicted_totals(self):
+        return self.predicted_avg * self.weights
+
+    @property
+    def segments(self):
+        return self.sf.segments
+
+# TODO: cleanly write out the back and forth transforms, with and witout weights
+    def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
+        y = self.predicted_totals
+        dy =(self.sf.predicted_totals - self.sf.segment_impact_on_totals(s))/self.sf.weights
+        return self.it(y) - self.it(dy)
 
 class SlicerPair:
     def __init__(self, s1: SliceFinder, s2: SliceFinder):

@@ -14,9 +14,9 @@ def create_time_basis(time_values: Union[pd.DataFrame, np.ndarray], include_brea
     const = np.ones(len(t))
     linear = np.cumsum(const)
     linear -= linear.mean()  # now orthogonal to const
-    col_names = ["Flat", "Slope"]
+    col_names = ["Slope"]
 
-    dummies = [const / 1e5, linear]
+    dummies = [linear]
 
     if include_breaks:
         for i in range(1, len(t)):

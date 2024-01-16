@@ -2,6 +2,7 @@ import copy
 import warnings
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -493,6 +494,31 @@ def _explain_timeseries(
 
     # TODO: insert back the normalized bits?
     for s in sf.segments:
+        segment_def = s["segment"]
+        assert "time" in segment_def, "Each segment should have a time profile!"
+        this_vec = (
+            sf.X[:, s["index"]]
+            .toarray()
+            .reshape(
+                -1,
+            )
+        )
+        time_mult = (
+            sf.time_basis[segment_def["time"]]
+            .toarray()
+            .reshape(
+                -1,
+            )
+        )
+        dummy = (this_vec / time_mult).astype(int).astype(np.float64)
+        s["dummy"] = dummy
+        s["seg_avg"] = this_vec * s["coef"]
+        if len(segment_def) > 1:
+            elems = np.unique(dummy)
+            assert len(elems) == 2
+            assert 1.0 in elems
+            assert 0.0 in elems
+
         s["naive_avg"] += average
         s["total"] += average * s["seg_size"]
     # print(average)

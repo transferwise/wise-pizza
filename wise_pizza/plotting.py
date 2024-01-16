@@ -532,7 +532,7 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None )
         average_name = "Averages"
 
     df = pd.DataFrame(
-        {"totals": sf.totals + sf.y_adj, "weights": sf.weights, "Regr totals": sf.predict_totals + sf.y_adj, "time": sf.time}
+        {"totals":  sf.actual_totals, "weights": sf.weights, "Regr totals": sf.predicted_totals, "time": sf.time}
     )
     df["reg_time_profile"] = 0.0
 
@@ -543,38 +543,12 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None )
     for i, s in enumerate(sf.segments):
         # Get the segment definition
         segment_def = s["segment"]
-        assert "time" in segment_def, "Each segment should have a time profile!"
-        this_vec = (
-            sf.X[:, s["index"]]
-            .toarray()
-            .reshape(
-                -1,
-            )
-        )
-        # calculate the impact of this segment's coefficient
-        df[f"Seg {i+1}_avg"] = this_vec * s["coef"]
-        df[f"Seg {i+1}"] = df[f"Seg {i+1}_avg"] * df["weights"]
-
+        df[f"Seg {i + 1}"] = sf.segment_impact_on_totals(s)
         if len(segment_def) > 1:
             # for segments that are not just a pure time profile
             nonflat_segments.append(s)
-
-            # Divide out the time profile mult - we've made sure it's always nonzero
-            time_mult = (
-                sf.time_basis[segment_def["time"]]
-                .toarray()
-                .reshape(
-                    -1,
-                )
-            )
-            dummy = (this_vec / time_mult).astype(int).astype(np.float64)
-            s["dummy"] = dummy
+            # df[f"Seg {i + 1}_avg"] = s["seg_avg"]
             s["plot_segment"] = f"Seg {i+1}"
-            elems = np.unique(dummy)
-            assert len(elems) == 2
-            assert 1.0 in elems
-            assert 0.0 in elems
-
         elif len(segment_def) == 1:
             # Accumulate all pure time profiles into one
             df["reg_time_profile"] += df[f"Seg {i + 1}"]
