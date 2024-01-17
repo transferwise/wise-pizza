@@ -331,35 +331,52 @@ class SliceFinder:
     def predicted_totals(self):
         return self.predict_totals + self.y_adj
 
+
+
 class TransformedSliceFinder(SliceFinder):
-    def __init__(self, sf: SliceFinder, inverse_transform: Optional[Callable] = None):
+    def __init__(self, sf: SliceFinder, offset: float=1.0,  inverse_transform: Optional[Callable] = None):
         # For now, just use log(1+x) as transform, assume sf was fitted on transformed data
         self.sf = sf
         if inverse_transform is None:
-            self.it = lambda x: np.maximum(np.exp(x) -1, 0.0)
+            self.it = lambda x: np.maximum(np.exp(x) - offset, 0.0)
         else:
             self.it = inverse_transform
 
         self.actual_avg = self.it(sf.actual_totals/sf.weights) # a_i
-        self.predicted_avg = self.it(self.sf.predicted_totals/self.sf.weights)
         self.weights = sf.weights/(1+self.actual_avg)
+        total = np.sum(self.actual_totals)
+        self.predicted_avg = self.it(self.sf.predicted_totals/self.sf.weights)
+
+        # probably because of some convexity effect of the exp,
+        # predictions end up too high on average post-inverse transform
+        self.pred_scaler = total / np.sum(self.predicted_avg*self.weights)
+
     @property
     def actual_totals(self):
         return self.actual_avg * self.weights
 
     @property
     def predicted_totals(self):
-        return self.predicted_avg * self.weights
+        return self.pred_scaler*self.predicted_avg * self.weights
 
     @property
     def segments(self):
         return self.sf.segments
 
+    @property
+    def time(self):
+        return self.sf.time
+
+    @property
+    def total_name(self):
+        return self.sf.total_name
+
 # TODO: cleanly write out the back and forth transforms, with and witout weights
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
         y = self.predicted_totals
-        dy =(self.sf.predicted_totals - self.sf.segment_impact_on_totals(s))/self.sf.weights
-        return self.it(y) - self.it(dy)
+        avg_without_segment = (self.sf.predicted_totals - self.sf.segment_impact_on_totals(s))/self.sf.weights
+        dy = self.pred_scaler*self.it(avg_without_segment)*self.weights
+        return y - dy
 
 class SlicerPair:
     def __init__(self, s1: SliceFinder, s2: SliceFinder):

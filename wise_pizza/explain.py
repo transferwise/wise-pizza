@@ -8,7 +8,7 @@ import pandas as pd
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time, plot_ts_pair
-from wise_pizza.slicer import SliceFinder, SlicerPair
+from wise_pizza.slicer import SliceFinder, SlicerPair, TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df
 from wise_pizza.time import create_time_basis, average_over_time
 
@@ -354,10 +354,9 @@ def explain_timeseries(
     max_depth: int = 2,
     solver: str = "omp",
     verbose: bool = False,
-    force_add_up: bool = False,
-    constrain_signs: bool = False,
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
+    fit_log_space: bool=False
 ):
     sf_totals = _explain_timeseries(
         df=df,
@@ -378,10 +377,26 @@ def explain_timeseries(
     if not size_name:
         return sf_totals
 
+    if fit_log_space:
+        # transform
+        offset = 1
+        # transform = lambda x: x + offset
+        # inverse_transform = lambda x: np.maximum(0.0, x-offset)
+        transform = lambda x: np.log(offset + x )
+        inverse_transform = lambda x: np.maximum(0.0, np.exp(x) - offset)
+        weight_transform = lambda w, a: w*(offset+a)
+        size_name_orig = size_name + "_orig"
+        df2 = df.rename(columns={size_name: size_name_orig })
+        df2[size_name] = pd.Series(data=transform(df2[size_name_orig].values), index=df2.index)
+        df2["resc_wgt"] = weight_transform(1.0, df2[size_name_orig].values)
+    else:
+        df2 = df
+
     sf_wgt = _explain_timeseries(
-        df=df,
+        df=df2,
         dims=dims,
         total_name=size_name,
+        size_name="resc_wgt",
         time_name=time_name,
         min_segments=min_segments,
         max_segments=max_segments,
@@ -392,8 +407,12 @@ def explain_timeseries(
         cluster_values=cluster_values,
         time_basis=time_basis,
     )
+    if fit_log_space:
+        sf1 = TransformedSliceFinder(sf_wgt, offset=offset, inverse_transform=inverse_transform)
+    else:
+        sf1 = sf_wgt
 
-    out = SlicerPair(sf_wgt, sf_totals)
+    out = SlicerPair(sf1, sf_totals)
     out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
         out, width=width, height=height, average_name=average_name, use_fitted_weights=use_fitted_weights
     )
