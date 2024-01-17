@@ -11,6 +11,7 @@ from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfa
 from wise_pizza.slicer import SliceFinder, SlicerPair, TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df
 from wise_pizza.time import create_time_basis, average_over_time
+from wise_pizza.transform import IdentityTransform, LogTransform
 
 
 def explain_changes_in_average(
@@ -356,7 +357,7 @@ def explain_timeseries(
     verbose: bool = False,
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
-    fit_log_space: bool=False
+    fit_log_space: bool = False,
 ):
     sf_totals = _explain_timeseries(
         df=df,
@@ -378,19 +379,14 @@ def explain_timeseries(
         return sf_totals
 
     if fit_log_space:
-        # transform
-        offset = 1
-        # transform = lambda x: x + offset
-        # inverse_transform = lambda x: np.maximum(0.0, x-offset)
-        transform = lambda x: np.log(offset + x )
-        inverse_transform = lambda x: np.maximum(0.0, np.exp(x) - offset)
-        weight_transform = lambda w, a: w*(offset+a)
-        size_name_orig = size_name + "_orig"
-        df2 = df.rename(columns={size_name: size_name_orig })
-        df2[size_name] = pd.Series(data=transform(df2[size_name_orig].values), index=df2.index)
-        df2["resc_wgt"] = weight_transform(1.0, df2[size_name_orig].values)
+        tf = LogTransform(offset=1)
     else:
-        df2 = df
+        tf = IdentityTransform()
+
+    size_name_orig = size_name + "_orig"
+    df2 = df.rename(columns={size_name: size_name_orig})
+    df2[size_name] = pd.Series(data=tf.transform(df2[size_name_orig].values), index=df2.index)
+    df2["resc_wgt"] = tf.weight_transform(np.ones_like(df2[size_name_orig].values), df2[size_name_orig].values)
 
     sf_wgt = _explain_timeseries(
         df=df2,
@@ -407,10 +403,8 @@ def explain_timeseries(
         cluster_values=cluster_values,
         time_basis=time_basis,
     )
-    if fit_log_space:
-        sf1 = TransformedSliceFinder(sf_wgt, offset=offset, inverse_transform=inverse_transform)
-    else:
-        sf1 = sf_wgt
+
+    sf1 = TransformedSliceFinder(sf_wgt, transformer=tf)
 
     out = SlicerPair(sf1, sf_totals)
     out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
