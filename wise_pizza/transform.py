@@ -35,8 +35,9 @@ class IdentityTransform(TransformWithWeights):
         return w
 
 class LogTransform(TransformWithWeights):
-    def __init__(self, offset: float):
+    def __init__(self, offset: float, weight_pow_sc: float=0.1):
         self.offset = offset
+        self.weight_pow_sc = weight_pow_sc
 
     def transform(self, x: np.ndarray) -> np.ndarray:
         return np.log(self.offset + x)
@@ -45,7 +46,10 @@ class LogTransform(TransformWithWeights):
         return np.maximum(0.0, np.exp(x)-self.offset)
 
     def weight_transform(self, w: np.ndarray, x: np.ndarray) -> np.ndarray:
-        return w*(self.offset+x)
+        # pure math would give weight_pow_sc = 1, but then
+        # there's too much information from actuals being leaked into the weights,
+        # so the
+        return w * np.power(self.offset+x, self.weight_pow_sc)
 
     def inverse_weight_transform(self, w: np.ndarray, x: np.ndarray) -> np.ndarray:
-        return w/(self.offset+self.inverse_transform(x))
+        return w / np.power(self.offset+self.inverse_transform(x), self.weight_pow_sc)

@@ -429,6 +429,7 @@ def plot_waterfall(
         if cluster_values:
             fig2.show()
 
+
 @dataclass
 class PlotData:
     df: pd.DataFrame
@@ -438,13 +439,12 @@ class PlotData:
     average_name: str
     sub_titles: List[str]
 
-def plot_time(
-    sf: SliceFinder, width: int = 1000, height: int = 1000, average_name: Optional[str] = None
-):
+
+def plot_time(sf: SliceFinder, width: int = 1000, height: int = 1000, average_name: Optional[str] = None):
     plot_data = preprocess_for_ts_plot(sf, average_name)
     fig = make_subplots(rows=len(plot_data.nonflat_segments) + 1, cols=2, subplot_titles=plot_data.sub_titles)
 
-    plot_single_ts(plot_data, fig, col_nums=(1,2))
+    plot_single_ts(plot_data, fig, col_nums=(1, 2))
 
     for i in range(len(fig.layout.annotations)):
         fig.layout.annotations[i].font.size = 10
@@ -452,31 +452,32 @@ def plot_time(
     fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
     fig.show()
 
-def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fitted_weights: bool=False):
+
+def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fitted_weights: bool = False):
     # if use_fitted_weights:
     #     sf = copy.deepcopy(sf)
     #     sf.s2.totals = (sf.s2.totals/sf.s2.weights)*sf.s1.totals
     #     sf.s2.weights = sf.s1.totals
 
-    wgt_plot_data = preprocess_for_ts_plot(sf.s1, average_name) # average name correct?
+    wgt_plot_data = preprocess_for_ts_plot(sf.s1, average_name)  # average name correct?
     totals_plot_data = preprocess_for_ts_plot(sf.s2, average_name)
-    num_rows = max(len(wgt_plot_data.nonflat_segments) + 1,len(totals_plot_data.nonflat_segments) + 1)
+    num_rows = max(len(wgt_plot_data.nonflat_segments) + 1, len(totals_plot_data.nonflat_segments) + 1)
     subplot_titles = []
     for i in range(num_rows):
-        if 2*i < len(wgt_plot_data.sub_titles):
-            subplot_titles.append(wgt_plot_data.sub_titles[2*i])
+        if 2 * i < len(wgt_plot_data.sub_titles):
+            subplot_titles.append(wgt_plot_data.sub_titles[2 * i])
         else:
             subplot_titles.append("")
-        if 2*i < len(totals_plot_data.sub_titles):
+        if 2 * i < len(totals_plot_data.sub_titles):
             subplot_titles.append(totals_plot_data.sub_titles[2 * i + 1])
-            subplot_titles.append(totals_plot_data.sub_titles[2 * i ])
+            subplot_titles.append(totals_plot_data.sub_titles[2 * i])
         else:
             subplot_titles.append("")
             subplot_titles.append("")
 
     fig = make_subplots(rows=num_rows, cols=3, subplot_titles=subplot_titles)
-    plot_single_ts(wgt_plot_data, fig, col_nums=(1, None), showlegend=False)
-    plot_single_ts(totals_plot_data, fig, col_nums=(3,2))
+    plot_single_ts(wgt_plot_data, fig, col_nums=(1, None), showlegend=False)  # 1, None
+    plot_single_ts(totals_plot_data, fig, col_nums=(3, 2))  # 3,2
 
     for i in range(len(fig.layout.annotations)):
         fig.layout.annotations[i].font.size = 10
@@ -485,12 +486,7 @@ def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fi
     fig.show()
 
 
-def plot_single_ts(
-    plotdata: PlotData,
-    fig,
-    showlegend: bool=True,
-    col_nums: Tuple[int, int] = (1, 2)
-):
+def plot_single_ts(plotdata: PlotData, fig, showlegend: bool = True, col_nums: Tuple[int, int] = (1, 2)):
     for i, s in enumerate(plotdata.nonflat_segments):
         agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
         # Create subplots
@@ -503,7 +499,7 @@ def plot_single_ts(
             reg_totals=agg_df["Regr totals"],
             row_num=i + 2,
             showlegend=False,
-            col_nums = col_nums
+            col_nums=col_nums,
         )
 
     # Show the actuals for stuff not in segments
@@ -523,16 +519,16 @@ def plot_single_ts(
         leftover_avgs=left["totals"] / left["weights"],
         row_num=1,
         showlegend=showlegend,
-        col_nums=col_nums
+        col_nums=col_nums,
     )
 
 
-def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None ) -> PlotData:
+def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None) -> PlotData:
     if average_name is None:
         average_name = "Averages"
 
     df = pd.DataFrame(
-        {"totals":  sf.actual_totals, "weights": sf.weights, "Regr totals": sf.predicted_totals, "time": sf.time}
+        {"totals": sf.actual_totals, "weights": sf.weights, "Regr totals": sf.predicted_totals, "time": sf.time}
     )
     df["reg_time_profile"] = 0.0
 
@@ -568,8 +564,6 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None )
     return plot_data
 
 
-
-
 def naive_dummy(dim_df, seg_def):
     dummy = np.ones(len(dim_df))
     for col, val in seg_def.items():
@@ -590,7 +584,7 @@ def simple_ts_plot(
     reg_seg=None,
     row_num=1,
     showlegend: bool = False,
-        col_nums: Tuple[int, int]=(1,2)
+    col_nums: Tuple[int, int] = (1, 2),
 ):
     for col in col_nums:
         if col == col_nums[0]:
@@ -650,5 +644,3 @@ def simple_ts_plot(
                 row=row_num,
                 col=col,
             )
-
-
