@@ -359,34 +359,39 @@ def explain_timeseries(
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
 ):
-    sf_totals = _explain_timeseries(
-        df=df,
-        dims=dims,
-        total_name=total_name,
-        time_name=time_name,
-        size_name=size_name,
-        min_segments=min_segments,
-        max_segments=max_segments,
-        min_depth=min_depth,
-        max_depth=max_depth,
-        solver=solver,
-        verbose=verbose,
-        cluster_values=cluster_values,
-        time_basis=time_basis,
-    )
-
     if not size_name:
+        sf_totals = _explain_timeseries(
+            df=df,
+            dims=dims,
+            total_name=total_name,
+            time_name=time_name,
+            size_name=size_name,
+            min_segments=min_segments,
+            max_segments=max_segments,
+            min_depth=min_depth,
+            max_depth=max_depth,
+            solver=solver,
+            verbose=verbose,
+            cluster_values=cluster_values,
+            time_basis=time_basis,
+        )
+
         return sf_totals
 
     if fit_log_space:
-        tf = LogTransform(offset=1)
+        tf = LogTransform(offset=1, weight_pow_sc=0.5)
     else:
         tf = IdentityTransform()
 
     size_name_orig = size_name + "_orig"
-    df2 = df.rename(columns={size_name: size_name_orig})
-    df2[size_name] = pd.Series(data=tf.transform(df2[size_name_orig].values), index=df2.index)
-    df2["resc_wgt"] = tf.weight_transform(np.ones_like(df2[size_name_orig].values), df2[size_name_orig].values)
+    total_name_orig = total_name + "_orig"
+
+    df2 = df.rename(columns={size_name: size_name_orig, total_name: total_name_orig})
+    this_w = np.ones_like(df2[size_name_orig].values)
+    these_totals = df2[size_name_orig].values
+    t, w = tf.transform_totals_weights(these_totals, this_w)
+    df2[size_name] = pd.Series(data=t, index=df2.index)
+    df2["resc_wgt"] = pd.Series(data=w, index=df2.index)
 
     sf_wgt = _explain_timeseries(
         df=df2,
@@ -406,7 +411,34 @@ def explain_timeseries(
 
     sf1 = TransformedSliceFinder(sf_wgt, transformer=tf)
 
-    out = SlicerPair(sf1, sf_totals)
+    # Replace actual weights with fitted ones, for consistent extrapolation
+    fitted_sizes = sf1.predicted_totals
+
+    tf2 = IdentityTransform()# LogTransform(offset=100) #
+    t, w = tf2.transform_totals_weights(df2[total_name_orig].values, fitted_sizes)
+    df2[total_name] = pd.Series(data=t, index=df2.index)
+    df2[size_name] = pd.Series(data=w, index=df2.index)
+
+    sf_totals = _explain_timeseries(
+        df=df,
+        dims=dims,
+        total_name=total_name,
+        time_name=time_name,
+        size_name=size_name,
+        min_segments=min_segments,
+        max_segments=max_segments,
+        min_depth=min_depth,
+        max_depth=max_depth,
+        solver=solver,
+        verbose=verbose,
+        cluster_values=cluster_values,
+        time_basis=time_basis,
+    )
+
+
+    sf2 = TransformedSliceFinder(sf_totals, tf2)
+
+    out = SlicerPair(sf1, sf2)
     out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
         out, width=width, height=height, average_name=average_name, use_fitted_weights=use_fitted_weights
     )

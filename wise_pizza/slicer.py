@@ -340,10 +340,10 @@ class TransformedSliceFinder(SliceFinder):
         else:
             self.tf = transformer
         trans_avg = sf.actual_totals / sf.weights  # averages in the transformed space
-        self.actual_avg = self.tf.inverse_transform(trans_avg)  # a_i
-        self.weights = self.tf.inverse_weight_transform(sf.weights, trans_avg)
+        self.actual_avg = self.tf.inverse_transform_mean(trans_avg)  # a_i
+        self.weights = self.tf.inverse_transform_weight(sf.weights, trans_avg)
         total = np.sum(self.actual_totals)
-        self.predicted_avg = self.tf.inverse_transform(self.sf.predicted_totals / self.sf.weights)
+        self.predicted_avg = self.tf.inverse_transform_mean(self.sf.predicted_totals / self.sf.weights)
 
         # probably because of some convexity effect of the exp,
         # predictions end up too high on average post-inverse transform
@@ -372,8 +372,9 @@ class TransformedSliceFinder(SliceFinder):
     # TODO: cleanly write out the back and forth transforms, with and witout weights
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
         y = self.predicted_totals
-        avg_without_segment = (self.sf.predicted_totals - self.sf.segment_impact_on_totals(s)) / self.sf.weights
-        dy = self.pred_scaler * self.tf.inverse_transform(avg_without_segment) * self.weights
+        totals_without_segment = self.sf.predicted_totals - self.sf.segment_impact_on_totals(s)
+        dt, w = self.tf.inverse_transform_totals_weights(totals_without_segment, self.sf.weights)
+        dy = self.pred_scaler * dt
         return y - dy
 
 
