@@ -320,7 +320,7 @@ class SliceFinder:
         return relevant_clusters
 
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
-        return s["seg_avg"] * self.weights
+        return s["seg_total_vec"]
 
     @property
     def actual_totals(self):

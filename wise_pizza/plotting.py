@@ -522,6 +522,8 @@ def plot_single_ts(plotdata: PlotData, fig, showlegend: bool = True, col_nums: T
         col_nums=col_nums,
     )
 
+def same_apart_from_time(s1, s2) -> bool:
+    return np.sum(np.abs(s1["dummy"]-s2["dummy"])) < 0.5
 
 def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None) -> PlotData:
     if average_name is None:
@@ -539,15 +541,23 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None) 
     for i, s in enumerate(sf.segments):
         # Get the segment definition
         segment_def = s["segment"]
-        df[f"Seg {i + 1}"] = sf.segment_impact_on_totals(s)
+        seg_impact = sf.segment_impact_on_totals(s)
+
         if len(segment_def) > 1:
-            # for segments that are not just a pure time profile
-            nonflat_segments.append(s)
-            # df[f"Seg {i + 1}_avg"] = s["seg_avg"]
-            s["plot_segment"] = f"Seg {i+1}"
+            almost_duplicate = False
+            for s2 in nonflat_segments:
+                if same_apart_from_time(s, s2):
+                    almost_duplicate = True
+                    df[s2["plot_segment"]] += seg_impact
+                    s2["segment"]["time"] = s2["segment"]["time"] + "," + s["segment"]["time"]
+            if not almost_duplicate:
+                nonflat_segments.append(s)
+                df[f"Seg {i + 1}"] = seg_impact
+                s["plot_segment"] = f"Seg {i+1}"
         elif len(segment_def) == 1:
             # Accumulate all pure time profiles into one
-            df["reg_time_profile"] += df[f"Seg {i + 1}"]
+            # TODO: this de-duping is almost the same as above, merge!
+            df["reg_time_profile"] += seg_impact
             global_time_profile_names.append(segment_def["time"])
 
     # now create the plots

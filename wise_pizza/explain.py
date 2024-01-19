@@ -379,7 +379,7 @@ def explain_timeseries(
         return sf_totals
 
     if fit_log_space:
-        tf = LogTransform(offset=1, weight_pow_sc=0.5)
+        tf = LogTransform(offset=1, weight_pow_sc=0.2)
     else:
         tf = IdentityTransform()
 
@@ -414,7 +414,7 @@ def explain_timeseries(
     # Replace actual weights with fitted ones, for consistent extrapolation
     fitted_sizes = sf1.predicted_totals
 
-    tf2 = IdentityTransform()# LogTransform(offset=100) #
+    tf2 = IdentityTransform()  # LogTransform(offset=100) #
     t, w = tf2.transform_totals_weights(df2[total_name_orig].values, fitted_sizes)
     df2[total_name] = pd.Series(data=t, index=df2.index)
     df2[size_name] = pd.Series(data=w, index=df2.index)
@@ -434,7 +434,6 @@ def explain_timeseries(
         cluster_values=cluster_values,
         time_basis=time_basis,
     )
-
 
     sf2 = TransformedSliceFinder(sf_totals, tf2)
 
@@ -557,7 +556,7 @@ def _explain_timeseries(
         )
         dummy = (this_vec / time_mult).astype(int).astype(np.float64)
         s["dummy"] = dummy
-        s["seg_avg"] = this_vec * s["coef"]
+        s["seg_total_vec"] = this_vec * s["coef"] * sf.weights
         if len(segment_def) > 1:
             elems = np.unique(dummy)
             assert len(elems) == 2
