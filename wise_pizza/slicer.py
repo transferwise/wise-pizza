@@ -346,9 +346,23 @@ class TransformedSliceFinder(SliceFinder):
         total = np.sum(self.actual_totals)
         self.predicted_avg = self.tf.inverse_transform_mean(self.sf.predicted_totals / self.sf.weights)
 
+
+
         # probably because of some convexity effect of the exp,
         # predictions end up a touch too high on average post-inverse transform
         self.pred_scaler = total / np.sum(self.predicted_avg * self.weights)
+
+        # Now let's make sure single-segment impacts add up to total impact
+        self.segment_mult = 1.0
+        # sum_marginals = 0
+        # base, _ = self.tf.inverse_transform_totals_weights(self.sf.y_adj, self.sf.weights)
+        # pt, _ = self.tf.inverse_transform_totals_weights(self.sf.predicted_totals, self.sf.weights)
+        # total_diff = self.pred_scaler*(pt-base)
+        #
+        # for s in sf.segments:
+        #     sum_marginals += self.segment_impact_on_totals(s)
+        #
+        # self.segment_mult = np.median(np.abs(total_diff/sum_marginals))
 
     @property
     def actual_totals(self):
@@ -372,11 +386,13 @@ class TransformedSliceFinder(SliceFinder):
 
     # TODO: cleanly write out the back and forth transforms, with and witout weights
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
-        y = self.predicted_totals
         totals_without_segment = self.sf.predicted_totals - self.sf.segment_impact_on_totals(s)
-        dt, w = self.tf.inverse_transform_totals_weights(totals_without_segment, self.sf.weights)
-        dy = self.pred_scaler * dt
-        return y - dy
+        # the base value without any of the coefficients
+        # base, _ = self.tf.inverse_transform_totals_weights(self.sf.y_adj, self.sf.weights)
+        pt, _ = self.tf.inverse_transform_totals_weights(self.sf.predicted_totals, self.sf.weights)
+        dpt, _ = self.tf.inverse_transform_totals_weights(totals_without_segment, self.sf.weights)
+
+        return self.pred_scaler*self.segment_mult*(pt - dpt)
 
 
 class SlicerPair:

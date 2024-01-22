@@ -358,7 +358,7 @@ def explain_timeseries(
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
-    log_space_weight_sc: float =0.2
+    log_space_weight_sc: float =0.5
 ):
     df = copy.copy(df)
 

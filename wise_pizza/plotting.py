@@ -442,7 +442,9 @@ class PlotData:
 
 def plot_time(sf: SliceFinder, width: int = 1000, height: int = 1000, average_name: Optional[str] = None):
     plot_data = preprocess_for_ts_plot(sf, average_name)
-    fig = make_subplots(rows=len(plot_data.nonflat_segments) + 1, cols=2, subplot_titles=plot_data.sub_titles)
+    num_rows = len(plot_data.nonflat_segments) + 1
+    fig = make_subplots(rows=num_rows, cols=2, subplot_titles=plot_data.sub_titles,
+                        specs=[[{"secondary_y": True}]*2]*num_rows)
 
     plot_single_ts(plot_data, fig, col_nums=(1, 2))
 
@@ -475,7 +477,7 @@ def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fi
             subplot_titles.append("")
             subplot_titles.append("")
 
-    fig = make_subplots(rows=num_rows, cols=3, subplot_titles=subplot_titles)
+    fig = make_subplots(rows=num_rows, cols=3, subplot_titles=subplot_titles,specs=[[{"secondary_y": True}]*3]*num_rows)
     plot_single_ts(wgt_plot_data, fig, col_nums=(1, None), showlegend=False)  # 1, None
     plot_single_ts(totals_plot_data, fig, col_nums=(3, 2))  # 3,2
 
@@ -635,12 +637,13 @@ def simple_ts_plot(
                     x=time,
                     y=reg_seg * mult,
                     mode="lines",
-                    name=f"Segment's reg contribution",
+                    name=f"Segment's reg contribution (Right axis)",
                     line=dict(color="teal"),
                     showlegend=showlegend and col == col_nums[0],
                 ),
                 row=row_num,
                 col=col,
+                secondary_y=True
             )
         if leftover_totals is not None:
             fig.add_trace(
