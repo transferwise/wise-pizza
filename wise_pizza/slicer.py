@@ -339,6 +339,7 @@ class TransformedSliceFinder(SliceFinder):
             self.tf = IdentityTransform()
         else:
             self.tf = transformer
+
         trans_avg = sf.actual_totals / sf.weights  # averages in the transformed space
         self.actual_avg = self.tf.inverse_transform_mean(trans_avg)  # a_i
         self.weights = self.tf.inverse_transform_weight(sf.weights, trans_avg)
@@ -346,7 +347,7 @@ class TransformedSliceFinder(SliceFinder):
         self.predicted_avg = self.tf.inverse_transform_mean(self.sf.predicted_totals / self.sf.weights)
 
         # probably because of some convexity effect of the exp,
-        # predictions end up too high on average post-inverse transform
+        # predictions end up a touch too high on average post-inverse transform
         self.pred_scaler = total / np.sum(self.predicted_avg * self.weights)
 
     @property

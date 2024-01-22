@@ -9,8 +9,8 @@ warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time, plot_ts_pair
 from wise_pizza.slicer import SliceFinder, SlicerPair, TransformedSliceFinder
-from wise_pizza.utils import diff_dataset, prepare_df
-from wise_pizza.time import create_time_basis, average_over_time
+from wise_pizza.utils import diff_dataset, prepare_df, almost_equals
+from wise_pizza.time import create_time_basis, add_average_over_time
 from wise_pizza.transform import IdentityTransform, LogTransform
 
 
@@ -358,7 +358,20 @@ def explain_timeseries(
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
+    log_space_weight_sc: float =0.2
 ):
+    df = copy.copy(df)
+
+    # replace NaN values in numeric columns with zeros
+    # replace NaN values in categorical columns with the column name + "_unknown"
+    # Group by dims + [time_name]
+    df = prepare_df(df, dims, total_name=total_name, size_name=size_name, time_name=time_name)
+    df = df.sort_values(by=dims + [time_name])
+
+    if size_name is None:
+        size_name = "size"
+        df[size_name] = 1.0
+
     if not size_name:
         sf_totals = _explain_timeseries(
             df=df,
@@ -379,7 +392,7 @@ def explain_timeseries(
         return sf_totals
 
     if fit_log_space:
-        tf = LogTransform(offset=1, weight_pow_sc=0.2)
+        tf = LogTransform(offset=1, weight_pow_sc=log_space_weight_sc)
     else:
         tf = IdentityTransform()
 
@@ -389,6 +402,9 @@ def explain_timeseries(
     df2 = df.rename(columns={size_name: size_name_orig, total_name: total_name_orig})
     this_w = np.ones_like(df2[size_name_orig].values)
     these_totals = df2[size_name_orig].values
+
+    tf.test_transforms(this_w, these_totals)
+
     t, w = tf.transform_totals_weights(these_totals, this_w)
     df2[size_name] = pd.Series(data=t, index=df2.index)
     df2["resc_wgt"] = pd.Series(data=w, index=df2.index)
@@ -412,15 +428,25 @@ def explain_timeseries(
     sf1 = TransformedSliceFinder(sf_wgt, transformer=tf)
 
     # Replace actual weights with fitted ones, for consistent extrapolation
-    fitted_sizes = sf1.predicted_totals
+    eps = 1e-3
+    fitted_sizes = np.maximum(sf1.predicted_totals, eps)
+    fitted_sizes[np.isnan(fitted_sizes)] = eps
+    actual_avgs = df2[total_name_orig].values/df2[size_name_orig].values
+    adj_totals = actual_avgs * fitted_sizes
 
-    tf2 = IdentityTransform()  # LogTransform(offset=100) #
-    t, w = tf2.transform_totals_weights(df2[total_name_orig].values, fitted_sizes)
+    if fit_log_space:
+        tf2 = LogTransform(offset=1, weight_pow_sc=log_space_weight_sc)
+    else:
+        tf2 = IdentityTransform()
+
+    tf2.test_transforms(adj_totals, fitted_sizes)
+
+    t, w = tf2.transform_totals_weights(adj_totals, fitted_sizes)
     df2[total_name] = pd.Series(data=t, index=df2.index)
     df2[size_name] = pd.Series(data=w, index=df2.index)
 
     sf_totals = _explain_timeseries(
-        df=df,
+        df=df2,
         dims=dims,
         total_name=total_name,
         time_name=time_name,
@@ -435,7 +461,14 @@ def explain_timeseries(
         time_basis=time_basis,
     )
 
+    assert almost_equals(t, sf_totals.actual_totals)
+    assert almost_equals(w, sf_totals.weights)
+
     sf2 = TransformedSliceFinder(sf_totals, tf2)
+
+    assert almost_equals(adj_totals, sf2.actual_totals)
+    assert almost_equals(fitted_sizes, sf2.weights)
+
 
     out = SlicerPair(sf1, sf2)
     out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
@@ -481,16 +514,7 @@ def _explain_timeseries(
     group of segments from the same dimension with similar naive averages
     @return: A fitted object
     """
-    df = copy.copy(df)
 
-    # replace NaN values in numeric columns with zeros
-    # replace NaN values in categorical columns with the column name + "_unknown"
-    # Group by dims + [time_name]
-    df = prepare_df(df, dims, total_name=total_name, size_name=size_name, time_name=time_name)
-
-    if size_name is None:
-        size_name = "size"
-        df[size_name] = 1.0
 
     # strip out constants and possibly linear trends for each dimension combination
     baseline_dims = 1
@@ -508,7 +532,9 @@ def _explain_timeseries(
 
         print("yay!")
 
-    df = average_over_time(df, dims=dims, total_name=total_name, size_name=size_name, time_name=time_name)
+    df = add_average_over_time(df, dims=dims, total_name=total_name, size_name=size_name, time_name=time_name)
+    # The join in the above function could have messed up the ordering
+    df = df.sort_values(by=dims + [time_name])
 
     # This block is pointless as we just normalized each sub-segment to zero average across time
     average = df[total_name].sum() / df[size_name].sum()

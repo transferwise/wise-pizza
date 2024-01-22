@@ -280,3 +280,5 @@ def prepare_df(
 #     new_df[object_columns] = new_df[object_columns].astype(str)
 #
 #     return new_df
+def almost_equals(x1, x2, eps: float=1e-6) -> bool:
+    return np.sum(np.abs(x1-x2))/np.mean(np.abs(x1+x2)) < eps

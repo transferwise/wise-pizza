@@ -34,7 +34,7 @@ def create_time_basis(time_values: Union[pd.DataFrame, np.ndarray], include_brea
     return out
 
 
-def average_over_time(
+def add_average_over_time(
     df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str
 ) -> pd.DataFrame:
     avgs = df[dims + [total_name, size_name]].groupby(dims, as_index=False).sum()
