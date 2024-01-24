@@ -1,8 +1,8 @@
 <img src="https://github.com/transferwise/wise-pizza/blob/main/docs/Wise_Logo.png?raw=True" width=10% height=10%>
 
-# Wise Pizza: A library for automated figuring out most unusual segments
+# Wise Pizza: Automatically finding unusual segments in your data
 
-**WisePizza** is a library to find and visualise the most interesting slices in multidimensional data based on Lasso and LP solvers, which provides different functions to find segments whose average is most different from the global one or find segments most useful in explaining the difference between two datasets.
+**WisePizza** is a library to find and visualise the most interesting slices in multidimensional data, which provides different functions to find segments whose average is most different from the global one or find segments most useful in explaining the **difference** between two datasets.
 
 ## The approach
 WisePizza assumes you have a dataset with a number of discrete *dimensions* (could be currency, region, etc). For each
