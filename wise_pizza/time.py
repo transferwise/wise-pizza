@@ -1,10 +1,15 @@
 from typing import Union, List
+import datetime
 
 import numpy as np
 import pandas as pd
 
 
-def create_time_basis(time_values: Union[pd.DataFrame, np.ndarray], include_breaks: int = 0, baseline_dims: int = 1):
+def create_time_basis(
+    time_values: Union[pd.DataFrame, np.ndarray],
+    include_breaks: int = 0,
+    baseline_dims: int = 1,
+):
     if baseline_dims != 1:
         raise NotImplementedError
     if isinstance(time_values, pd.DataFrame):
@@ -23,7 +28,7 @@ def create_time_basis(time_values: Union[pd.DataFrame, np.ndarray], include_brea
             dummy = np.ones(len(t))
             dummy[:i] = 0
             dummies.append(dummy - dummy.mean())
-            #TODO: force date format
+            # TODO: force date format
             col_names.append(f"{t[i]}_step")
             cum_dummy = np.cumsum(dummy)
             dummies.append(cum_dummy - cum_dummy.mean())
@@ -33,11 +38,15 @@ def create_time_basis(time_values: Union[pd.DataFrame, np.ndarray], include_brea
     out = pd.DataFrame(index=t, columns=col_names, data=dummies.T)
     return out
 
+
 def extend_dataframe(df: pd.DataFrame, N: int) -> pd.DataFrame:
     df_extended = df.copy()
 
     # Try to infer the frequency from the original index
     freq = pd.infer_freq(df.index)
+
+    # Check the type of the original index
+    index_type = df.index[0].__class__
 
     for _ in range(N):
         diff = df_extended.iloc[-1] - df_extended.iloc[-2]
@@ -50,9 +59,14 @@ def extend_dataframe(df: pd.DataFrame, N: int) -> pd.DataFrame:
         else:
             new_date = df_extended.index[-1] + pd.tseries.frequencies.to_offset(freq)
 
+        # If the original index was of type date, convert the new date to date
+        if index_type == datetime.date:
+            new_date = new_date.date()
+
         df_extended.loc[new_date] = new_row
 
     return df_extended
+
 
 def add_average_over_time(
     df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str
@@ -64,5 +78,7 @@ def add_average_over_time(
     joined["total_adjustment"] = joined[size_name] * joined["avg"]
     out = joined[dims + [total_name, size_name, time_name, "total_adjustment"]]
     tmp = out[dims + [total_name, "total_adjustment"]].groupby(dims).sum()
-    assert (tmp[total_name] - tmp["total_adjustment"]).abs().sum() < 1e-6 * df[total_name].abs().max()
+    assert (tmp[total_name] - tmp["total_adjustment"]).abs().sum() < 1e-6 * df[
+        total_name
+    ].abs().max()
     return out
