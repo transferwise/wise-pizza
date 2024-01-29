@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Union, List, Dict, Sequence, Callable
+from typing import Optional, Union, List, Dict, Sequence
 from collections import defaultdict
 
 import numpy as np
@@ -10,7 +10,6 @@ from wise_pizza.find_alpha import clean_up_min_max, find_alpha
 from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import guided_kmeans
 from wise_pizza.preselect import HeuristicSelector
-from wise_pizza.transform import TransformWithWeights, IdentityTransform
 from wise_pizza.time import extend_dataframe
 
 
@@ -410,8 +409,11 @@ class SliceFinder:
 
         # Construct the dummies for predicting
         new_X = []
+
         for s in self.segments:
-            new_X.append(make_dummy(s["segment"], new_dim_df))
+            dummy = make_dummy(s["segment"], new_dim_df)
+            new_X.append(dummy)
+
         new_X = np.concatenate(new_X, axis=1)
 
         # Evaluate the regression
@@ -440,82 +442,6 @@ def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
         else:
             dummy = dummy * (dim_df[k] == v).values.reshape((-1, 1))
     return dummy
-
-
-class TransformedSliceFinder(SliceFinder):
-    def __init__(
-        self, sf: SliceFinder, transformer: Optional[TransformWithWeights] = None
-    ):
-        # For now, just use log(1+x) as transform, assume sf was fitted on transformed data
-        self.sf = sf
-        if transformer is None:
-            self.tf = IdentityTransform()
-        else:
-            self.tf = transformer
-
-        trans_avg = sf.actual_totals / sf.weights  # averages in the transformed space
-        self.actual_avg = self.tf.inverse_transform_mean(trans_avg)  # a_i
-        self.weights = self.tf.inverse_transform_weight(sf.weights, trans_avg)
-        total = np.sum(self.actual_totals)
-        self.predicted_avg = self.tf.inverse_transform_mean(
-            self.sf.predicted_totals / self.sf.weights
-        )
-
-        # probably because of some convexity effect of the exp,
-        # predictions end up a touch too high on average post-inverse transform
-        self.pred_scaler = total / np.sum(self.predicted_avg * self.weights)
-
-        # Now let's make sure single-segment impacts add up to total impact
-        self.segment_mult = 1.0
-        # sum_marginals = 0
-        # base, _ = self.tf.inverse_transform_totals_weights(self.sf.y_adj, self.sf.weights)
-        # pt, _ = self.tf.inverse_transform_totals_weights(self.sf.predicted_totals, self.sf.weights)
-        # total_diff = self.pred_scaler*(pt-base)
-        #
-        # for s in sf.segments:
-        #     sum_marginals += self.segment_impact_on_totals(s)
-        #
-        # self.segment_mult = np.median(np.abs(total_diff/sum_marginals))
-
-    @property
-    def actual_totals(self):
-        return self.actual_avg * self.weights
-
-    @property
-    def predicted_totals(self):
-        return self.pred_scaler * self.predicted_avg * self.weights
-
-    @property
-    def segments(self):
-        return self.sf.segments
-
-    @property
-    def y_adj(self):
-        return self.sf.y_adj
-
-    @property
-    def time(self):
-        return self.sf.time
-
-    @property
-    def total_name(self):
-        return self.sf.total_name
-
-    # TODO: cleanly write out the back and forth transforms, with and witout weights
-    def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
-        totals_without_segment = (
-            self.sf.predicted_totals - self.sf.segment_impact_on_totals(s)
-        )
-        # the base value without any of the coefficients
-        # base, _ = self.tf.inverse_transform_totals_weights(self.sf.y_adj, self.sf.weights)
-        pt, _ = self.tf.inverse_transform_totals_weights(
-            self.sf.predicted_totals, self.sf.weights
-        )
-        dpt, _ = self.tf.inverse_transform_totals_weights(
-            totals_without_segment, self.sf.weights
-        )
-
-        return self.pred_scaler * self.segment_mult * (pt - dpt)
 
 
 class SlicerPair:

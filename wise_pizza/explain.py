@@ -14,7 +14,8 @@ from wise_pizza.plotting import (
     plot_time,
     plot_ts_pair,
 )
-from wise_pizza.slicer import SliceFinder, SlicerPair, TransformedSliceFinder
+from wise_pizza.slicer import SliceFinder, SlicerPair
+from wise_pizza.slicer_facades import TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df, almost_equals
 from wise_pizza.time import create_time_basis, add_average_over_time, extend_dataframe
 from wise_pizza.transform import IdentityTransform, LogTransform
