@@ -7,7 +7,13 @@ import pandas as pd
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
-from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time, plot_ts_pair
+from wise_pizza.plotting import (
+    plot_segments,
+    plot_split_segments,
+    plot_waterfall,
+    plot_time,
+    plot_ts_pair,
+)
 from wise_pizza.slicer import SliceFinder, SlicerPair, TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df, almost_equals
 from wise_pizza.time import create_time_basis, add_average_over_time, extend_dataframe
@@ -358,21 +364,30 @@ def explain_timeseries(
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
-    log_space_weight_sc: float =0.5
+    fit_sizes: Optional[bool] = None,
+    log_space_weight_sc: float = 0.5,
 ):
     df = copy.copy(df)
 
     # replace NaN values in numeric columns with zeros
     # replace NaN values in categorical columns with the column name + "_unknown"
     # Group by dims + [time_name]
-    df = prepare_df(df, dims, total_name=total_name, size_name=size_name, time_name=time_name)
+    df = prepare_df(
+        df, dims, total_name=total_name, size_name=size_name, time_name=time_name
+    )
     df = df.sort_values(by=dims + [time_name])
 
     if size_name is None:
         size_name = "size"
         df[size_name] = 1.0
+        if fit_sizes == True:
+            raise ValueError("fit_sizes should be None or False if size_name is None")
+        fit_sizes = False
+    else:
+        if fit_sizes is None:
+            fit_sizes = True
 
-    if not size_name:
+    if not fit_sizes:
         sf_totals = _explain_timeseries(
             df=df,
             dims=dims,
@@ -431,7 +446,7 @@ def explain_timeseries(
     eps = 1e-3
     fitted_sizes = np.maximum(sf1.predicted_totals, eps)
     fitted_sizes[np.isnan(fitted_sizes)] = eps
-    actual_avgs = df2[total_name_orig].values/df2[size_name_orig].values
+    actual_avgs = df2[total_name_orig].values / df2[size_name_orig].values
     adj_totals = actual_avgs * fitted_sizes
 
     if fit_log_space:
@@ -469,10 +484,13 @@ def explain_timeseries(
     assert almost_equals(adj_totals, sf2.actual_totals)
     assert almost_equals(fitted_sizes, sf2.weights)
 
-
     out = SlicerPair(sf1, sf2)
     out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
-        out, width=width, height=height, average_name=average_name, use_fitted_weights=use_fitted_weights
+        out,
+        width=width,
+        height=height,
+        average_name=average_name,
+        use_fitted_weights=use_fitted_weights,
     )
     out.task = "time with weights"
     return out
@@ -515,16 +533,19 @@ def _explain_timeseries(
     @return: A fitted object
     """
 
-
     # strip out constants and possibly linear trends for each dimension combination
     baseline_dims = 1
     if time_basis is None:
-        time_basis = create_time_basis(df[time_name].unique(), baseline_dims=baseline_dims, include_breaks=True)
+        time_basis = create_time_basis(
+            df[time_name].unique(), baseline_dims=baseline_dims, include_breaks=True
+        )
         dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
         chosen_cols = []
         num_breaks = 2
         for i in range(1, num_breaks + 1):
-            chosen_cols.append(dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))])
+            chosen_cols.append(
+                dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))]
+            )
         pre_basis = time_basis[list(time_basis.columns[:2]) + chosen_cols].copy()
         # TODO: fix this bug
         for c in chosen_cols:
@@ -532,7 +553,9 @@ def _explain_timeseries(
 
         print("yay!")
 
-    df = add_average_over_time(df, dims=dims, total_name=total_name, size_name=size_name, time_name=time_name)
+    df = add_average_over_time(
+        df, dims=dims, total_name=total_name, size_name=size_name, time_name=time_name
+    )
     # The join in the above function could have messed up the ordering
     df = df.sort_values(by=dims + [time_name])
 
