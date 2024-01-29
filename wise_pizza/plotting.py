@@ -610,10 +610,11 @@ def preprocess_for_ts_plot(
                         s2["segment"]["time"] + "," + s["segment"]["time"]
                     )
             if not almost_duplicate:
-                nonflat_segments.append(s)
                 # offset the segment by actual averages' difference from the global average
                 df[f"Seg {i + 1}"] = seg_impact  # + s["dummy"]*rel_adj
                 s["plot_segment"] = f"Seg {i+1}"
+                nonflat_segments.append(copy.deepcopy(s))
+
         elif len(segment_def) == 1:
             # Accumulate all pure time profiles into one
             # TODO: this de-duping is almost the same as above, merge!

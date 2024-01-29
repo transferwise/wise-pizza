@@ -388,9 +388,7 @@ class SliceFinder:
             pre_dim_df = self.dim_df[dims].drop_duplicates()
             pre_dim_df[self.size_name] = 1
 
-            import pandas as pd
-
-            # Assuming df1 and df2 are your two dataframes
+            # Do a Cartesian join of the time basis and the dimensions
             new_basis["key"] = 1
             pre_dim_df["key"] = 1
 
@@ -414,7 +412,7 @@ class SliceFinder:
         new_X = []
         for s in self.segments:
             new_X.append(make_dummy(s["segment"], new_dim_df))
-        new_X = np.stack(new_X).T
+        new_X = np.concatenate(new_X, axis=1)
 
         # Evaluate the regression
         new_avg = self.reg.predict(new_X)
