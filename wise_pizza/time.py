@@ -33,6 +33,26 @@ def create_time_basis(time_values: Union[pd.DataFrame, np.ndarray], include_brea
     out = pd.DataFrame(index=t, columns=col_names, data=dummies.T)
     return out
 
+def extend_dataframe(df: pd.DataFrame, N: int) -> pd.DataFrame:
+    df_extended = df.copy()
+
+    # Try to infer the frequency from the original index
+    freq = pd.infer_freq(df.index)
+
+    for _ in range(N):
+        diff = df_extended.iloc[-1] - df_extended.iloc[-2]
+        new_row = df_extended.iloc[-1] + diff
+
+        # If the frequency could not be inferred, use the difference of the last two index values
+        if freq is None:
+            offset = df_extended.index[-1] - df_extended.index[-2]
+            new_date = df_extended.index[-1] + offset
+        else:
+            new_date = df_extended.index[-1] + pd.tseries.frequencies.to_offset(freq)
+
+        df_extended.loc[new_date] = new_row
+
+    return df_extended
 
 def add_average_over_time(
     df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str

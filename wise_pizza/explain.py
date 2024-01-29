@@ -10,7 +10,7 @@ warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 from wise_pizza.plotting import plot_segments, plot_split_segments, plot_waterfall, plot_time, plot_ts_pair
 from wise_pizza.slicer import SliceFinder, SlicerPair, TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df, almost_equals
-from wise_pizza.time import create_time_basis, add_average_over_time
+from wise_pizza.time import create_time_basis, add_average_over_time, extend_dataframe
 from wise_pizza.transform import IdentityTransform, LogTransform
 
 
@@ -544,7 +544,9 @@ def _explain_timeseries(
     sf.global_average = average
     sf.total_name = total_name
     sf.size_name = size_name
+    sf.time_name = time_name
     sf.y_adj = df["total_adjustment"].values
+    sf.time_values = df[time_name].unique()
     sf.fit(
         df[dims],
         df["_target"],

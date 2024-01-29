@@ -135,7 +135,9 @@ def plot_split_segments(
         )
 
         # Create a layout
-        layout = go.Layout(title="Relevant cluster names", title_x=0)  # Center the title
+        layout = go.Layout(
+            title="Relevant cluster names", title_x=0
+        )  # Center the title
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
@@ -264,7 +266,9 @@ def plot_segments(
         )
 
         # Create a layout
-        layout = go.Layout(title="Relevant cluster names", title_x=0)  # Center the title
+        layout = go.Layout(
+            title="Relevant cluster names", title_x=0
+        )  # Center the title
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
@@ -405,7 +409,9 @@ def plot_waterfall(
         )
 
         # Create a layout
-        layout = go.Layout(title="Relevant cluster names", title_x=0)  # Center the title
+        layout = go.Layout(
+            title="Relevant cluster names", title_x=0
+        )  # Center the title
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
@@ -440,22 +446,42 @@ class PlotData:
     sub_titles: List[str]
 
 
-def plot_time(sf: SliceFinder, width: int = 1000, height: int = 1000, average_name: Optional[str] = None):
+def plot_time(
+    sf: SliceFinder,
+    width: int = 1000,
+    height: int = 1000,
+    average_name: Optional[str] = None,
+):
     plot_data = preprocess_for_ts_plot(sf, average_name)
     num_rows = len(plot_data.nonflat_segments) + 1
-    fig = make_subplots(rows=num_rows, cols=2, subplot_titles=plot_data.sub_titles,
-                        specs=[[{"secondary_y": True}]*2]*num_rows)
+    fig = make_subplots(
+        rows=num_rows,
+        cols=2,
+        subplot_titles=plot_data.sub_titles,
+        specs=[[{"secondary_y": True}] * 2] * num_rows,
+    )
 
     plot_single_ts(plot_data, fig, col_nums=(1, 2))
 
     for i in range(len(fig.layout.annotations)):
         fig.layout.annotations[i].font.size = 10
 
-    fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
+    fig.update_layout(
+        title_text=f"Actuals vs explanation by segment",
+        showlegend=True,
+        width=width,
+        height=height,
+    )
     fig.show()
 
 
-def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fitted_weights: bool = False):
+def plot_ts_pair(
+    sf: SlicerPair,
+    width,
+    height,
+    average_name: str = None,
+    use_fitted_weights: bool = False,
+):
     # if use_fitted_weights:
     #     sf = copy.deepcopy(sf)
     #     sf.s2.totals = (sf.s2.totals/sf.s2.weights)*sf.s1.totals
@@ -463,7 +489,10 @@ def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fi
 
     wgt_plot_data = preprocess_for_ts_plot(sf.s1, average_name)  # average name correct?
     totals_plot_data = preprocess_for_ts_plot(sf.s2, average_name)
-    num_rows = max(len(wgt_plot_data.nonflat_segments) + 1, len(totals_plot_data.nonflat_segments) + 1)
+    num_rows = max(
+        len(wgt_plot_data.nonflat_segments) + 1,
+        len(totals_plot_data.nonflat_segments) + 1,
+    )
     subplot_titles = []
     for i in range(num_rows):
         if 2 * i < len(wgt_plot_data.sub_titles):
@@ -477,18 +506,30 @@ def plot_ts_pair(sf: SlicerPair, width, height, average_name: str = None, use_fi
             subplot_titles.append("")
             subplot_titles.append("")
 
-    fig = make_subplots(rows=num_rows, cols=3, subplot_titles=subplot_titles,specs=[[{"secondary_y": True}]*3]*num_rows)
+    fig = make_subplots(
+        rows=num_rows,
+        cols=3,
+        subplot_titles=subplot_titles,
+        specs=[[{"secondary_y": True}] * 3] * num_rows,
+    )
     plot_single_ts(wgt_plot_data, fig, col_nums=(1, None), showlegend=False)  # 1, None
     plot_single_ts(totals_plot_data, fig, col_nums=(3, 2))  # 3,2
 
     for i in range(len(fig.layout.annotations)):
         fig.layout.annotations[i].font.size = 10
 
-    fig.update_layout(title_text=f"Actuals vs explanation by segment", showlegend=True, width=width, height=height)
+    fig.update_layout(
+        title_text=f"Actuals vs explanation by segment",
+        showlegend=True,
+        width=width,
+        height=height,
+    )
     fig.show()
 
 
-def plot_single_ts(plotdata: PlotData, fig, showlegend: bool = True, col_nums: Tuple[int, int] = (1, 2)):
+def plot_single_ts(
+    plotdata: PlotData, fig, showlegend: bool = True, col_nums: Tuple[int, int] = (1, 2)
+):
     for i, s in enumerate(plotdata.nonflat_segments):
         agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
         # Create subplots
@@ -524,15 +565,24 @@ def plot_single_ts(plotdata: PlotData, fig, showlegend: bool = True, col_nums: T
         col_nums=col_nums,
     )
 
-def same_apart_from_time(s1, s2) -> bool:
-    return np.sum(np.abs(s1["dummy"]-s2["dummy"])) < 0.5
 
-def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None) -> PlotData:
+def same_apart_from_time(s1, s2) -> bool:
+    return np.sum(np.abs(s1["dummy"] - s2["dummy"])) < 0.5
+
+
+def preprocess_for_ts_plot(
+    sf: SliceFinder, average_name: Optional[str] = None
+) -> PlotData:
     if average_name is None:
         average_name = "Averages"
 
     df = pd.DataFrame(
-        {"totals": sf.actual_totals, "weights": sf.weights, "Regr totals": sf.predicted_totals, "time": sf.time}
+        {
+            "totals": sf.actual_totals,
+            "weights": sf.weights,
+            "Regr totals": sf.predicted_totals,
+            "time": sf.time,
+        }
     )
     df["reg_time_profile"] = 0.0
 
@@ -540,6 +590,11 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None) 
     global_reg = 0.0
     global_time_profile_names = []
     nonflat_segments = []
+
+    adj_avg = sf.y_adj.sum() / sf.weights.sum()
+
+    rel_adj = sf.y_adj - adj_avg * sf.weights
+
     for i, s in enumerate(sf.segments):
         # Get the segment definition
         segment_def = s["segment"]
@@ -551,10 +606,13 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None) 
                 if same_apart_from_time(s, s2):
                     almost_duplicate = True
                     df[s2["plot_segment"]] += seg_impact
-                    s2["segment"]["time"] = s2["segment"]["time"] + "," + s["segment"]["time"]
+                    s2["segment"]["time"] = (
+                        s2["segment"]["time"] + "," + s["segment"]["time"]
+                    )
             if not almost_duplicate:
                 nonflat_segments.append(s)
-                df[f"Seg {i + 1}"] = seg_impact
+                # offset the segment by actual averages' difference from the global average
+                df[f"Seg {i + 1}"] = seg_impact  # + s["dummy"]*rel_adj
                 s["plot_segment"] = f"Seg {i+1}"
         elif len(segment_def) == 1:
             # Accumulate all pure time profiles into one
@@ -562,17 +620,25 @@ def preprocess_for_ts_plot(sf: SliceFinder, average_name: Optional[str] = None) 
             df["reg_time_profile"] += seg_impact
             global_time_profile_names.append(segment_def["time"])
 
+        # Do the difference between segment average and global average, for display
+
     # now create the plots
     if len(global_time_profile_names):
         global_time_label = ", time:" + ",".join(global_time_profile_names)
     else:
         global_time_label = ""
 
-    seg_names = ["All" + global_time_label] + [str(s["segment"]) for s in nonflat_segments]
-    sub_titles = [[f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names]
+    seg_names = ["All" + global_time_label] + [
+        str(s["segment"]) for s in nonflat_segments
+    ]
+    sub_titles = [
+        [f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names
+    ]
     sub_titles = sum(sub_titles, start=[])
 
-    plot_data = PlotData(df, nonflat_segments, global_time_label, sf.total_name, average_name, sub_titles)
+    plot_data = PlotData(
+        df, nonflat_segments, global_time_label, sf.total_name, average_name, sub_titles
+    )
     return plot_data
 
 
@@ -643,7 +709,7 @@ def simple_ts_plot(
                 ),
                 row=row_num,
                 col=col,
-                secondary_y=True
+                secondary_y=True,
             )
         if leftover_totals is not None:
             fig.add_trace(

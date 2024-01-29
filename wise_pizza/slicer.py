@@ -11,6 +11,7 @@ from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import guided_kmeans
 from wise_pizza.preselect import HeuristicSelector
 from wise_pizza.transform import TransformWithWeights, IdentityTransform
+from wise_pizza.time import extend_dataframe
 
 
 def _summary(obj) -> str:
@@ -58,7 +59,11 @@ class SliceFinder:
         @return:
         """
         sel = HeuristicSelector(
-            max_cols=max_cols, weights=self.weights, totals=self.totals, time_basis=time_basis, verbose=self.verbose
+            max_cols=max_cols,
+            weights=self.weights,
+            totals=self.totals,
+            time_basis=time_basis,
+            verbose=self.verbose,
         )
 
         # This returns the candidate vectors in batches
@@ -150,6 +155,7 @@ class SliceFinder:
 
         # Transform the time basis from table by date to matrices by dataset row
         if time_col is not None:
+            self.basis_df = time_basis
             self.time_basis = {}
             for c in time_basis.columns:
                 this_ts = dim_df[c].values.reshape((-1, 1))
@@ -170,19 +176,30 @@ class SliceFinder:
         self.cluster_names = {}
         if cluster_values:
             for dim in dims:
-                if len(dim_df[dim].unique()) >= 6:  # otherwise what's the point in clustering?
-                    grouped_df = dim_df[[dim, "totals", "weights"]].groupby(dim, as_index=False).sum()
+                if (
+                    len(dim_df[dim].unique()) >= 6
+                ):  # otherwise what's the point in clustering?
+                    grouped_df = (
+                        dim_df[[dim, "totals", "weights"]]
+                        .groupby(dim, as_index=False)
+                        .sum()
+                    )
                     grouped_df["avg"] = grouped_df["totals"] / grouped_df["weights"]
                     grouped_df["cluster"], _ = guided_kmeans(grouped_df["avg"])
                     pre_clusters = (
-                        grouped_df[["cluster", dim]].groupby("cluster").agg({dim: lambda x: "@@".join(x)}).values
+                        grouped_df[["cluster", dim]]
+                        .groupby("cluster")
+                        .agg({dim: lambda x: "@@".join(x)})
+                        .values
                     )
                     # filter out clusters with only one element
                     these_clusters = [c for c in pre_clusters.reshape(-1) if "@@" in c]
                     # create short cluster names
                     for i, c in enumerate(these_clusters):
                         self.cluster_names[f"{dim}_cluster_{i+1}"] = c
-                    clusters[dim] = [c for c in self.cluster_names.keys() if c.startswith(dim)]
+                    clusters[dim] = [
+                        c for c in self.cluster_names.keys() if c.startswith(dim)
+                    ]
 
         dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
         self.dim_df = dim_df
@@ -224,20 +241,9 @@ class SliceFinder:
         if self.verbose:
             print("Solver done!!")
 
-        if time_basis is not None:  # it's a time series product
-            # Do we need this bit at all?
-            predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(
-                -1,
-            )
-            davg = (predict * self.weights).sum() / self.weights.sum()
-            self.reg.intercept_ = -davg
-
-            # And this is the version to use later in TS plotting
-            self.predict_totals = self.reg.predict(Xw[:, self.nonzeros]).reshape(
-                -1,
-            )
-
-        self.segments = [{"segment": self.col_defs[i], "index": int(i)} for i in self.nonzeros]
+        self.segments = [
+            {"segment": self.col_defs[i], "index": int(i)} for i in self.nonzeros
+        ]
 
         wgts = np.array((np.abs(Xw[:, self.nonzeros]) > 0).sum(axis=0))[0]
 
@@ -273,6 +279,21 @@ class SliceFinder:
             s["seg_size"] = wgt
             s["naive_avg"] = s["total"] / wgt
 
+        if time_basis is not None:  # it's a time series product
+            # Do we need this bit at all?
+            predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(
+                -1,
+            )
+            davg = (predict * self.weights).sum() / self.weights.sum()
+            self.reg.intercept_ = -davg
+
+            # And this is the version to use later in TS plotting
+            self.predict_totals = self.reg.predict(Xw[:, self.nonzeros]).reshape(
+                -1,
+            )
+
+            # self.enrich_segments_with_timeless_reg(self.segments, self.y_adj)
+
         self.segments = self.order_segments(self.segments)
 
         # In some cases (mostly in a/b exps we have a situation where there is no any diff in totals/sizes)
@@ -289,6 +310,11 @@ class SliceFinder:
                 }
             )
 
+    # def enrich_segments_with_timeless_reg(self, segments, y):
+    #     pre_X = [s["dummy"] for s in segments]
+    #     X = np.concatenate()
+    #     pass
+
     @staticmethod
     def order_segments(segments: List[Dict[str, any]]):
         pos_seg = [s for s in segments if s["impact"] > 0]
@@ -300,7 +326,11 @@ class SliceFinder:
 
     @staticmethod
     def segment_to_str(segment: Dict[str, any]):
-        s = {k: v for k, v in segment.items() if k not in ["coef", "impact", "avg_impact"]}
+        s = {
+            k: v
+            for k, v in segment.items()
+            if k not in ["coef", "impact", "avg_impact"]
+        }
         return str(s)
 
     @property
@@ -330,9 +360,94 @@ class SliceFinder:
     def predicted_totals(self):
         return self.predict_totals + self.y_adj
 
+    def predict(
+        self,
+        steps: Optional[int] = None,
+        basis: Optional[pd.DataFrame] = None,
+        weight_df: Optional[pd.DataFrame] = None,
+    ):
+        """
+        Predict the totals using the given basis
+        :param basis: Time profiles going into the future, time as index
+        :param weight_df: dataframe with all dimensions and time, plus weight column
+        :return:
+        """
+        if basis is None:
+            if steps is None:
+                steps = 6
+            basis = extend_dataframe(self.basis_df, steps)
+        else:
+            if steps is not None:
+                raise ValueError("Can't specify both basis and steps")
+
+        last_ts = self.time.max()
+        new_basis = basis[basis.index > last_ts]
+
+        dims = [c for c in self.dim_df.columns if c != "__time"]
+        if weight_df is None:
+            pre_dim_df = self.dim_df[dims].drop_duplicates()
+            pre_dim_df[self.size_name] = 1
+
+            import pandas as pd
+
+            # Assuming df1 and df2 are your two dataframes
+            new_basis["key"] = 1
+            pre_dim_df["key"] = 1
+
+            # Perform the merge operation
+            new_dim_df = (
+                pd.merge(new_basis, pre_dim_df, on="key")
+                .drop("key", axis=1)
+                .rename(columns={"__time": self.time_name})
+            )
+
+        else:
+            assert self.time_name in weight_df.columns
+            for d in dims:
+                assert d in weight_df.columns
+
+            new_dim_df = pd.merge(
+                new_basis, weight_df, left_index=True, right_on=self.time_name
+            )
+
+        # Construct the dummies for predicting
+        new_X = []
+        for s in self.segments:
+            new_X.append(make_dummy(s["segment"], new_dim_df))
+        new_X = np.stack(new_X).T
+
+        # Evaluate the regression
+        new_avg = self.reg.predict(new_X)
+
+        # Multiply by the weights
+        new_totals = new_avg * new_dim_df[self.size_name].values
+
+        # Return the dataframe with totals and weights
+        new_dim_df[self.total_name] = pd.Series(data=new_totals, index=new_dim_df.index)
+
+        return new_dim_df
+
+
+def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
+    """
+    Function to make dummy vector from segment definition
+    @param segment_def: Segment definition
+    @param dim_df: Dataset with dimensions
+    @return: Dummy vector
+    """
+    dummy = np.ones((len(dim_df), 1))
+    for k, v in segment_def.items():
+        if k == "time":
+            dummy *= dim_df[v].values.reshape((-1, 1))
+        else:
+            dummy = dummy * (dim_df[k] == v).values.reshape((-1, 1))
+    return dummy
+
 
 class TransformedSliceFinder(SliceFinder):
-    def __init__(self, sf: SliceFinder, transformer: Optional[TransformWithWeights] = None):
+    def __init__(
+        self, sf: SliceFinder, transformer: Optional[TransformWithWeights] = None
+    ):
         # For now, just use log(1+x) as transform, assume sf was fitted on transformed data
         self.sf = sf
         if transformer is None:
@@ -344,9 +459,9 @@ class TransformedSliceFinder(SliceFinder):
         self.actual_avg = self.tf.inverse_transform_mean(trans_avg)  # a_i
         self.weights = self.tf.inverse_transform_weight(sf.weights, trans_avg)
         total = np.sum(self.actual_totals)
-        self.predicted_avg = self.tf.inverse_transform_mean(self.sf.predicted_totals / self.sf.weights)
-
-
+        self.predicted_avg = self.tf.inverse_transform_mean(
+            self.sf.predicted_totals / self.sf.weights
+        )
 
         # probably because of some convexity effect of the exp,
         # predictions end up a touch too high on average post-inverse transform
@@ -377,6 +492,10 @@ class TransformedSliceFinder(SliceFinder):
         return self.sf.segments
 
     @property
+    def y_adj(self):
+        return self.sf.y_adj
+
+    @property
     def time(self):
         return self.sf.time
 
@@ -386,13 +505,19 @@ class TransformedSliceFinder(SliceFinder):
 
     # TODO: cleanly write out the back and forth transforms, with and witout weights
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
-        totals_without_segment = self.sf.predicted_totals - self.sf.segment_impact_on_totals(s)
+        totals_without_segment = (
+            self.sf.predicted_totals - self.sf.segment_impact_on_totals(s)
+        )
         # the base value without any of the coefficients
         # base, _ = self.tf.inverse_transform_totals_weights(self.sf.y_adj, self.sf.weights)
-        pt, _ = self.tf.inverse_transform_totals_weights(self.sf.predicted_totals, self.sf.weights)
-        dpt, _ = self.tf.inverse_transform_totals_weights(totals_without_segment, self.sf.weights)
+        pt, _ = self.tf.inverse_transform_totals_weights(
+            self.sf.predicted_totals, self.sf.weights
+        )
+        dpt, _ = self.tf.inverse_transform_totals_weights(
+            totals_without_segment, self.sf.weights
+        )
 
-        return self.pred_scaler*self.segment_mult*(pt - dpt)
+        return self.pred_scaler * self.segment_mult * (pt - dpt)
 
 
 class SlicerPair:
