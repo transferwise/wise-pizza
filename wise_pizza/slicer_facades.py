@@ -95,9 +95,14 @@ class SliceFinderPredictFacade(SliceFinderFacade):
     def segments(self):
         return self._segments
 
-    @property
-    def y_adj(self):
-        return np.concatenate([self.sf.y_adj, self.df["avg_future"].values])
+    # @property
+    # def y_adj(self):
+    #     return np.concatenate(
+    #         [
+    #             self.sf.y_adj,
+    #             self.df["avg_future"].values * self.df[self.sf.size_name].values,
+    #         ]
+    #     )
 
     @property
     def time(self):
@@ -109,8 +114,7 @@ class SliceFinderPredictFacade(SliceFinderFacade):
         return self.sf.total_name
 
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
-        # TODO: fix this
-        return np.zeros_like(self.actual_totals)
+        return s["seg_total_vec"]
 
 
 class TransformedSliceFinder(SliceFinderFacade):

@@ -591,9 +591,9 @@ def preprocess_for_ts_plot(
     global_time_profile_names = []
     nonflat_segments = []
 
-    adj_avg = sf.y_adj.sum() / sf.weights.sum()
+    # adj_avg = sf.y_adj.sum() / sf.weights.sum()
 
-    rel_adj = sf.y_adj - adj_avg * sf.weights
+    # rel_adj = sf.y_adj - adj_avg * sf.weights
 
     for i, s in enumerate(sf.segments):
         # Get the segment definition

@@ -415,16 +415,24 @@ class SliceFinder:
 
         segments = copy.deepcopy(self.segments)
         new_X = np.zeros((len(new_dim_df), len(segments)))
+
+        new_totals = np.zeros(len(new_dim_df))
         for s in segments:
-            dummy = make_dummy(s["segment"], new_dim_df)
-            new_X[:, s["orig_i"]] = dummy
+            dummy, Xi = make_dummy(s["segment"], new_dim_df)
+            new_X[:, s["orig_i"]] = Xi
             s["dummy"] = np.concatenate([s["dummy"], dummy], axis=0)
+            future_impact = new_dim_df[self.size_name].values * Xi * s["coef"]
+            new_totals += future_impact
+            s["seg_total_vec"] = np.concatenate([s["seg_total_vec"], future_impact])
 
         # Evaluate the regression
+        # TODO: why is that not working? Fix
         new_avg = self.reg.predict(new_X)
 
-        # Multiply by the weights
-        new_totals = new_avg * new_dim_df[self.size_name].values
+        # Add in the constant averages and multiply by the weights
+        new_totals = (new_avg + new_dim_df["avg_future"].values) * new_dim_df[
+            self.size_name
+        ].values
 
         # Return the dataframe with totals and weights
         new_dim_df[self.total_name] = pd.Series(data=new_totals, index=new_dim_df.index)
@@ -442,12 +450,16 @@ def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
     """
     dummy = np.ones((len(dim_df)))
     for k, v in segment_def.items():
-        if k == "time":
-            dummy *= dim_df[v].values
-        else:
+        if k != "time":
             dummy = dummy * (dim_df[k] == v).values
+
+    if "time" in segment_def:
+        Xi = dummy * dim_df[segment_def["time"]].values
+    else:
+        raise ValueError("Segments for time series prediction must contain time!")
+
     assert np.abs(dummy).sum() > 0
-    return dummy
+    return dummy, Xi
 
 
 class SlicerPair:
