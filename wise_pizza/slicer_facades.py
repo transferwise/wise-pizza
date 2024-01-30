@@ -26,11 +26,6 @@ class SliceFinderFacade(ABC):
 
     @property
     @abstractmethod
-    def y_adj(self):
-        pass
-
-    @property
-    @abstractmethod
     def time(self):
         pass
 

@@ -555,7 +555,12 @@ def _explain_timeseries(
         print("yay!")
 
     df, avg_df = add_average_over_time(
-        df, dims=dims, total_name=total_name, size_name=size_name, time_name=time_name
+        df,
+        dims=dims,
+        total_name=total_name,
+        size_name=size_name,
+        time_name=time_name,
+        cartesian=True,
     )
     # The join in the above function could have messed up the ordering
     df = df.sort_values(by=dims + [time_name])

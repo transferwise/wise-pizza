@@ -398,6 +398,7 @@ class SliceFinder:
             # Perform the merge operation
             new_dim_df = pd.merge(b, pre_dim_df, on="key").drop("key", axis=1)
         else:
+            # This branch is as yet untested
             assert self.time_name in weight_df.columns
             for d in dims:
                 assert d in weight_df.columns
