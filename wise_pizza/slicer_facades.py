@@ -189,3 +189,15 @@ class TransformedSliceFinder(SliceFinderFacade):
         )
 
         return self.pred_scaler * self.segment_mult * (pt - dpt)
+
+    def predict(
+        self,
+        steps: Optional[int] = None,
+        basis: Optional[pd.DataFrame] = None,
+        weight_df: Optional[pd.DataFrame] = None,
+    ):
+        # Just predict in the transformed space, then return same wrapper
+        inner_predict = self.sf.predict(steps=steps, basis=basis, weight_df=weight_df)
+        out = TransformedSliceFinder(inner_predict, self.tf)
+        out.__class__.plot = SliceFinderPredictFacade.plot
+        return out

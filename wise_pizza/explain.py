@@ -388,9 +388,24 @@ def explain_timeseries(
         if fit_sizes is None:
             fit_sizes = True
 
+    if fit_log_space:
+        tf = LogTransform(offset=1, weight_pow_sc=log_space_weight_sc)
+    else:
+        tf = IdentityTransform()
+
+    size_name_orig = size_name + "_orig"
+    total_name_orig = total_name + "_orig"
+
+    df2 = df.rename(columns={size_name: size_name_orig, total_name: total_name_orig})
+
     if not fit_sizes:
+        t, w = tf.transform_totals_weights(
+            df2[total_name_orig].values, df2[size_name_orig].values
+        )
+        df2[total_name] = pd.Series(data=t, index=df2.index)
+        df2[size_name] = pd.Series(data=w, index=df2.index)
         sf_totals = _explain_timeseries(
-            df=df,
+            df=df2,
             dims=dims,
             total_name=total_name,
             time_name=time_name,
@@ -404,18 +419,8 @@ def explain_timeseries(
             cluster_values=cluster_values,
             time_basis=time_basis,
         )
+        return TransformedSliceFinder(sf_totals, transformer=tf)
 
-        return sf_totals
-
-    if fit_log_space:
-        tf = LogTransform(offset=1, weight_pow_sc=log_space_weight_sc)
-    else:
-        tf = IdentityTransform()
-
-    size_name_orig = size_name + "_orig"
-    total_name_orig = total_name + "_orig"
-
-    df2 = df.rename(columns={size_name: size_name_orig, total_name: total_name_orig})
     this_w = np.ones_like(df2[size_name_orig].values)
     these_totals = df2[size_name_orig].values
 
