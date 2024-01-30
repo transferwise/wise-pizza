@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 import pandas as pd
 
-from wise_pizza.slicer import SliceFinder
 from wise_pizza.transform import TransformWithWeights, IdentityTransform
+from wise_pizza.plotting import plot_time
 
 
 class SliceFinderFacade(ABC):
@@ -45,14 +45,32 @@ class SliceFinderFacade(ABC):
 
 
 class SliceFinderPredictFacade(SliceFinderFacade):
-    def __init__(self, sf: SliceFinder, predict_df: pd.DataFrame):
+    def __init__(self, sf: "SliceFinder", predict_df: pd.DataFrame, segments: Dict):
         self.sf = sf
         self.df = predict_df
+        self._segments = segments
+
+    def plot(
+        self,
+        plot_is_static=False,
+        width=1200,
+        height=2000,
+        return_fig=False,
+        average_name=None,
+    ):
+        plot_time(
+            self,
+            # plot_is_static=plot_is_static,
+            width=width,
+            height=height,
+            # return_fig=return_fig,
+            average_name=average_name,
+        )
 
     @property
     def actual_totals(self):
         return np.concatenate(
-            [self.sf.actual_totals, np.nan * np.zeros((len(self.df), 1))]
+            [self.sf.actual_totals, np.nan * np.zeros((len(self.df)))]
         )
 
     @property
@@ -75,14 +93,15 @@ class SliceFinderPredictFacade(SliceFinderFacade):
 
     @property
     def segments(self):
-        return self.sf.segments
+        return self._segments
 
     @property
     def y_adj(self):
-        return self.sf.y_adj
+        return np.concatenate([self.sf.y_adj, self.df["avg_future"].values])
 
     @property
     def time(self):
+        # This is the column with the time period for each dataset row
         return np.concatenate([self.sf.time, self.df[self.sf.time_name].values])
 
     @property
@@ -96,7 +115,7 @@ class SliceFinderPredictFacade(SliceFinderFacade):
 
 class TransformedSliceFinder(SliceFinderFacade):
     def __init__(
-        self, sf: SliceFinder, transformer: Optional[TransformWithWeights] = None
+        self, sf: "SliceFinder", transformer: Optional[TransformWithWeights] = None
     ):
         # For now, just use log(1+x) as transform, assume sf was fitted on transformed data
         self.sf = sf

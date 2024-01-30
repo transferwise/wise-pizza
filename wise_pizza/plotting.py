@@ -8,7 +8,7 @@ from plotly.io import to_image
 from plotly.subplots import make_subplots
 
 
-from wise_pizza.slicer import SliceFinder, SlicerPair
+# from wise_pizza.slicer import SliceFinder, SlicerPair
 
 pio.templates.default = "plotly_white"
 
@@ -18,8 +18,8 @@ from IPython.display import Image, display
 
 
 def plot_split_segments(
-    sf_size: SliceFinder,
-    sf_avg: SliceFinder,
+    sf_size: "SliceFinder",
+    sf_avg: "SliceFinder",
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
@@ -175,7 +175,7 @@ def plot_split_segments(
 
 
 def plot_segments(
-    sf: SliceFinder,
+    sf: "SliceFinder",
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
@@ -306,7 +306,7 @@ def plot_segments(
                 fig2.show()
 
 
-def waterfall_args(sf: SliceFinder):
+def waterfall_args(sf: "SliceFinder"):
     """
     Waterfall plot arguments
     @param sf: SliceFinder
@@ -333,7 +333,7 @@ def waterfall_args(sf: SliceFinder):
     }
 
 
-def waterfall_layout_args(sf: SliceFinder, width: int = 1000, height: int = 1000):
+def waterfall_layout_args(sf: "SliceFinder", width: int = 1000, height: int = 1000):
     """
     Waterfall plot layout arguments
     @param sf: SliceFinder
@@ -363,7 +363,7 @@ def waterfall_layout_args(sf: SliceFinder, width: int = 1000, height: int = 1000
 
 
 def plot_waterfall(
-    sf: SliceFinder,
+    sf: "SliceFinder",
     plot_is_static: bool = False,
     width: int = 1000,
     height: int = 1000,
@@ -447,7 +447,7 @@ class PlotData:
 
 
 def plot_time(
-    sf: SliceFinder,
+    sf: "SliceFinder",
     width: int = 1000,
     height: int = 1000,
     average_name: Optional[str] = None,
@@ -476,7 +476,7 @@ def plot_time(
 
 
 def plot_ts_pair(
-    sf: SlicerPair,
+    sf: "SlicerPair",
     width,
     height,
     average_name: str = None,
@@ -571,7 +571,7 @@ def same_apart_from_time(s1, s2) -> bool:
 
 
 def preprocess_for_ts_plot(
-    sf: SliceFinder, average_name: Optional[str] = None
+    sf: "SliceFinder", average_name: Optional[str] = None
 ) -> PlotData:
     if average_name is None:
         average_name = "Averages"

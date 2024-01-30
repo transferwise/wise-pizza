@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Tuple
 import datetime
 
 import numpy as np
@@ -70,7 +70,7 @@ def extend_dataframe(df: pd.DataFrame, N: int) -> pd.DataFrame:
 
 def add_average_over_time(
     df: pd.DataFrame, dims: List[str], total_name: str, size_name: str, time_name: str
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     avgs = df[dims + [total_name, size_name]].groupby(dims, as_index=False).sum()
 
     avgs["avg"] = avgs[total_name] / avgs[size_name]
@@ -81,4 +81,4 @@ def add_average_over_time(
     assert (tmp[total_name] - tmp["total_adjustment"]).abs().sum() < 1e-6 * df[
         total_name
     ].abs().max()
-    return out
+    return out, avgs[dims + ["avg"]]

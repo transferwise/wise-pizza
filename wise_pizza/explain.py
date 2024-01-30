@@ -554,7 +554,7 @@ def _explain_timeseries(
 
         print("yay!")
 
-    df = add_average_over_time(
+    df, avg_df = add_average_over_time(
         df, dims=dims, total_name=total_name, size_name=size_name, time_name=time_name
     )
     # The join in the above function could have messed up the ordering
@@ -570,6 +570,7 @@ def _explain_timeseries(
     sf.size_name = size_name
     sf.time_name = time_name
     sf.y_adj = df["total_adjustment"].values
+    sf.avg_df = avg_df
     sf.time_values = df[time_name].unique()
     sf.fit(
         df[dims],

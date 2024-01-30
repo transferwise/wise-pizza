@@ -1,3 +1,4 @@
+import copy
 import json
 from typing import Optional, Union, List, Dict, Sequence
 from collections import defaultdict
@@ -11,6 +12,7 @@ from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import guided_kmeans
 from wise_pizza.preselect import HeuristicSelector
 from wise_pizza.time import extend_dataframe
+from wise_pizza.slicer_facades import SliceFinderPredictFacade
 
 
 def _summary(obj) -> str:
@@ -271,6 +273,7 @@ class SliceFinder:
             this_wgts = self.weights * dummy
             wgt = this_wgts.sum()
             # assert wgt == wgts[i]
+            s["orig_i"] = i
             s["coef"] = self.reg.coef_[i]
             s["impact"] = np.abs(s["coef"]) * (np.abs(this_vec) * self.weights).sum()
             s["avg_impact"] = s["impact"] / sum(self.weights)
@@ -388,16 +391,12 @@ class SliceFinder:
             pre_dim_df[self.size_name] = 1
 
             # Do a Cartesian join of the time basis and the dimensions
-            new_basis["key"] = 1
+            b = new_basis.reset_index().rename(columns={"index": self.time_name})
+            b["key"] = 1
             pre_dim_df["key"] = 1
 
             # Perform the merge operation
-            new_dim_df = (
-                pd.merge(new_basis, pre_dim_df, on="key")
-                .drop("key", axis=1)
-                .rename(columns={"__time": self.time_name})
-            )
-
+            new_dim_df = pd.merge(b, pre_dim_df, on="key").drop("key", axis=1)
         else:
             assert self.time_name in weight_df.columns
             for d in dims:
@@ -407,14 +406,19 @@ class SliceFinder:
                 new_basis, weight_df, left_index=True, right_on=self.time_name
             )
 
+        # Join the (timeless) averages to these future rows
+        new_dim_df = pd.merge(new_dim_df, self.avg_df, on=dims).rename(
+            columns={"avg": "avg_future"}
+        )
+
         # Construct the dummies for predicting
-        new_X = []
 
-        for s in self.segments:
+        segments = copy.deepcopy(self.segments)
+        new_X = np.zeros((len(new_dim_df), len(segments)))
+        for s in segments:
             dummy = make_dummy(s["segment"], new_dim_df)
-            new_X.append(dummy)
-
-        new_X = np.concatenate(new_X, axis=1)
+            new_X[:, s["orig_i"]] = dummy
+            s["dummy"] = np.concatenate([s["dummy"], dummy], axis=0)
 
         # Evaluate the regression
         new_avg = self.reg.predict(new_X)
@@ -425,7 +429,8 @@ class SliceFinder:
         # Return the dataframe with totals and weights
         new_dim_df[self.total_name] = pd.Series(data=new_totals, index=new_dim_df.index)
 
-        return new_dim_df
+        out = SliceFinderPredictFacade(self, new_dim_df, segments)
+        return out
 
 
 def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
@@ -435,12 +440,13 @@ def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
     @param dim_df: Dataset with dimensions
     @return: Dummy vector
     """
-    dummy = np.ones((len(dim_df), 1))
+    dummy = np.ones((len(dim_df)))
     for k, v in segment_def.items():
         if k == "time":
-            dummy *= dim_df[v].values.reshape((-1, 1))
+            dummy *= dim_df[v].values
         else:
-            dummy = dummy * (dim_df[k] == v).values.reshape((-1, 1))
+            dummy = dummy * (dim_df[k] == v).values
+    assert np.abs(dummy).sum() > 0
     return dummy
 
 
