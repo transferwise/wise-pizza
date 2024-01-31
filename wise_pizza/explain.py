@@ -11,9 +11,8 @@ from wise_pizza.plotting import (
     plot_segments,
     plot_split_segments,
     plot_waterfall,
-    plot_time,
-    plot_ts_pair,
 )
+from wise_pizza.plotting_time import plot_time, plot_ts_pair
 from wise_pizza.slicer import SliceFinder, SlicerPair
 from wise_pizza.slicer_facades import TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df, almost_equals
@@ -492,7 +491,8 @@ def explain_timeseries(
 
     out = SlicerPair(sf1, sf2)
     out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
-        out,
+        out.s1,
+        out.s2,
         width=width,
         height=height,
         average_name=average_name,
