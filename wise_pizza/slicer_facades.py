@@ -205,3 +205,21 @@ class TransformedSliceFinder(SliceFinderPlottingInterface):
         out = TransformedSliceFinder(inner_predict, self.tf)
         out.__class__.plot = SliceFinderPredictFacade.plot
         return out
+
+    # TODO: factor this out
+    def plot(
+        self,
+        plot_is_static=False,
+        width=1200,
+        height=2000,
+        return_fig=False,
+        average_name=None,
+    ):
+        plot_time(
+            self,
+            # plot_is_static=plot_is_static,
+            width=width,
+            height=height,
+            # return_fig=return_fig,
+            average_name=average_name,
+        )

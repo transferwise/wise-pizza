@@ -565,7 +565,7 @@ def _explain_timeseries(
         total_name=total_name,
         size_name=size_name,
         time_name=time_name,
-        cartesian=True,
+        cartesian=False,
     )
     # The join in the above function could have messed up the ordering
     df = df.sort_values(by=dims + [time_name])

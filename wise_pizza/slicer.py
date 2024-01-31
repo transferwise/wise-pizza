@@ -1,5 +1,6 @@
 import copy
 import json
+import warnings
 from typing import Optional, Union, List, Dict, Sequence
 from collections import defaultdict
 
@@ -375,8 +376,14 @@ class SliceFinder:
         :return:
         """
         if basis is None:
-            if steps is None:
-                steps = 6
+            if weight_df is None:
+                if steps is None:
+                    steps = 6
+            else:
+                steps = len(weight_df[self.time_name].unique())
+                warnings.warn(
+                    "Ignoring steps argument, using weight_df to determine forecast horizon"
+                )
             basis = extend_dataframe(self.basis_df, steps)
         else:
             if steps is not None:
@@ -408,9 +415,14 @@ class SliceFinder:
             )
 
         # Join the (timeless) averages to these future rows
-        new_dim_df = pd.merge(new_dim_df, self.avg_df, on=dims).rename(
+        new_dim_df = pd.merge(new_dim_df, self.avg_df, on=dims, how="left").rename(
             columns={"avg": "avg_future"}
         )
+        # TODO: replace with a simple regression for more plausible baselines
+        global_avg = (
+            new_dim_df[self.total_name].sum() / new_dim_df[self.size_name].sum()
+        )
+        new_dim_df["avg_future"] = new_dim_df["avg_future"].fillna(global_avg)
 
         # Construct the dummies for predicting
 
