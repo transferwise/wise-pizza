@@ -427,7 +427,6 @@ class SliceFinder:
             s["seg_total_vec"] = np.concatenate([s["seg_total_vec"], future_impact])
 
         # Evaluate the regression
-        # TODO: why is that not working? Fix
         new_avg = self.reg.predict(new_X)
 
         # Add in the constant averages and multiply by the weights

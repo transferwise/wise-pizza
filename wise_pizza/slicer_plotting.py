@@ -42,6 +42,11 @@ class SliceFinderPlottingInterface(ABC):
 
     @property
     @abstractmethod
+    def size_name(self):
+        pass
+
+    @property
+    @abstractmethod
     def predict(
         self,
         steps: Optional[int] = None,

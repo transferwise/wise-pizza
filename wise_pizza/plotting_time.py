@@ -30,12 +30,14 @@ def plot_time(
     num_rows = len(plot_data.nonflat_segments) + 1
     fig = make_subplots(
         rows=num_rows,
-        cols=2,
-        subplot_titles=plot_data.sub_titles,
-        specs=[[{"secondary_y": True}] * 2] * num_rows,
+        cols=3,
+        subplot_titles=sum(plot_data.sub_titles, []),
+        specs=[[{"secondary_y": False}, {"secondary_y": True}, {"secondary_y": True}]]
+        * num_rows,
     )
 
-    plot_single_ts(plot_data, fig, col_nums=(1, 2))
+    plot_single_ts(plot_data, fig, col_nums=(3, 2))
+    plot_weights(plot_data, fig, col_num=1)
 
     for i in range(len(fig.layout.annotations)):
         fig.layout.annotations[i].font.size = 10
@@ -70,13 +72,14 @@ def plot_ts_pair(
     )
     subplot_titles = []
     for i in range(num_rows):
-        if 2 * i < len(wgt_plot_data.sub_titles):
-            subplot_titles.append(wgt_plot_data.sub_titles[2 * i])
+        if i < len(wgt_plot_data.sub_titles):
+            # Totals from weights regression
+            subplot_titles.append(wgt_plot_data.sub_titles[i][2])
         else:
             subplot_titles.append("")
-        if 2 * i < len(totals_plot_data.sub_titles):
-            subplot_titles.append(totals_plot_data.sub_titles[2 * i + 1])
-            subplot_titles.append(totals_plot_data.sub_titles[2 * i])
+        if i < len(totals_plot_data.sub_titles):
+            subplot_titles.append(totals_plot_data.sub_titles[i][1])
+            subplot_titles.append(totals_plot_data.sub_titles[i][2])
         else:
             subplot_titles.append("")
             subplot_titles.append("")
@@ -138,6 +141,44 @@ def plot_single_ts(
         row_num=1,
         showlegend=showlegend,
         col_nums=col_nums,
+    )
+
+
+def plot_weights(plotdata: PlotData, fig, col_num: int = 1):
+    for i, s in enumerate(plotdata.nonflat_segments):
+        agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
+        zeros = np.zeros(len(agg_df))
+        # Create subplots
+        simple_ts_plot(
+            fig,
+            agg_df["time"],
+            agg_df["weights"],
+            np.ones(len(agg_df)),
+            reg_seg=None,
+            reg_totals=None,
+            row_num=i + 2,
+            showlegend=False,
+            col_nums=(col_num, None),
+        )
+
+    # Show the actuals for stuff not in segments
+    outside = np.abs(sum([s["dummy"] for s in plotdata.nonflat_segments])) < 1e-8
+
+    left = plotdata.df[outside].groupby("time", as_index=False).sum()
+    all_data = plotdata.df.groupby("time", as_index=False).sum()
+
+    simple_ts_plot(
+        fig,
+        all_data["time"],
+        all_data["weights"],
+        np.ones(len(all_data)),
+        reg_seg=None,
+        reg_totals=None,
+        leftover_totals=left["weights"],
+        leftover_avgs=left["totals"] / left["weights"],
+        row_num=1,
+        showlegend=False,
+        col_nums=(col_num, None),
     )
 
 
@@ -205,17 +246,28 @@ def preprocess_for_ts_plot(
         global_time_label = ""
 
     seg_names = ["All" + global_time_label] + [
-        str(s["segment"]) for s in nonflat_segments
+        str(drop_time(s["segment"])) for s in nonflat_segments
     ]
     sub_titles = [
-        [f"{sf.total_name} for {s} ", f"{average_name} for {s}"] for s in seg_names
+        [
+            f"{sf.size_name} for {s} ",
+            f"{average_name} for {s}",
+            f"{sf.total_name} for {s}",
+        ]
+        for s in seg_names
     ]
-    sub_titles = sum(sub_titles, start=[])
+    # sub_titles = sum(sub_titles, start=[])
 
     plot_data = PlotData(
         df, nonflat_segments, global_time_label, sf.total_name, average_name, sub_titles
     )
     return plot_data
+
+
+def drop_time(s: Dict[str, Any]) -> Dict[str, Any]:
+    s = copy.deepcopy(s)
+    s.pop("time")
+    return s
 
 
 def naive_dummy(dim_df, seg_def):

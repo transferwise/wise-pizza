@@ -78,6 +78,10 @@ class SliceFinderPredictFacade(SliceFinderPlottingInterface):
     def total_name(self):
         return self.sf.total_name
 
+    @property
+    def size_name(self):
+        return self.sf.size_name
+
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
         return s["seg_total_vec"]
 
@@ -169,6 +173,10 @@ class TransformedSliceFinder(SliceFinderPlottingInterface):
     @property
     def total_name(self):
         return self.sf.total_name
+
+    @property
+    def size_name(self):
+        return self.sf.size_name
 
     def segment_impact_on_totals(self, s: Dict) -> np.ndarray:
         # Calculate transformed prediction with and without the segment
