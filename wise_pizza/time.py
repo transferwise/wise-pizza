@@ -39,7 +39,7 @@ def create_time_basis(
     return out
 
 
-def extend_dataframe(df: pd.DataFrame, N: int) -> pd.DataFrame:
+def extend_dataframe(df: pd.DataFrame, N: int, decay: float = 1.0) -> pd.DataFrame:
     df_extended = df.copy()
 
     # Try to infer the frequency from the original index
@@ -50,7 +50,7 @@ def extend_dataframe(df: pd.DataFrame, N: int) -> pd.DataFrame:
 
     for _ in range(N):
         diff = df_extended.iloc[-1] - df_extended.iloc[-2]
-        new_row = df_extended.iloc[-1] + diff
+        new_row = df_extended.iloc[-1] + decay * diff
 
         # If the frequency could not be inferred, use the difference of the last two index values
         if freq is None:

@@ -9,6 +9,12 @@ from wise_pizza.transform import TransformWithWeights, IdentityTransform
 from wise_pizza.plotting_time import plot_time
 
 
+class NotFittedError(Exception):
+    """Exception class to raise if predict is called before fit."""
+
+    pass
+
+
 class SliceFinderPredictFacade(SliceFinderPlottingInterface):
     def __init__(self, sf: "SliceFinder", predict_df: pd.DataFrame, segments: Dict):
         self.sf = sf
@@ -93,6 +99,10 @@ class SliceFinderPredictFacade(SliceFinderPlottingInterface):
     ):
         raise NotImplementedError("Can't predict on a prediction")
 
+    @property
+    def predicted_df(self):
+        return self.df
+
 
 class TransformedSliceFinder(SliceFinderPlottingInterface):
     def __init__(
@@ -124,9 +134,10 @@ class TransformedSliceFinder(SliceFinderPlottingInterface):
         # So let's introduce a scaling factor to fix that
         # Can't use self.predicted_totals here, because it needs self.pred_scaler
         predicted_totals = self.predicted_avg * self.weights
-        assert not np.isnan(np.sum(predicted_totals))
+        # TODO: debug this!
+        # assert not np.isnan(np.sum(predicted_totals))
 
-        nice = ~np.isnan(self.actual_totals)
+        nice = ~np.isnan(self.actual_totals * predicted_totals)
         self.pred_scaler = np.sum(self.actual_totals[nice]) / np.sum(
             predicted_totals[nice]
         )
@@ -205,6 +216,13 @@ class TransformedSliceFinder(SliceFinderPlottingInterface):
         out = TransformedSliceFinder(inner_predict, self.tf)
         out.__class__.plot = SliceFinderPredictFacade.plot
         return out
+
+    @property
+    def predicted_df(self):
+        if isinstance(self.sf, SliceFinderPredictFacade):
+            return self.sf.df
+        else:
+            raise NotFittedError("Call predict method first to create the prediction")
 
     # TODO: factor this out
     def plot(

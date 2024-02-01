@@ -70,15 +70,20 @@ class IdentityTransform(TransformWithWeights):
 
 
 class LogTransform(TransformWithWeights):
-    def __init__(self, offset: float, weight_pow_sc: float = 0.1):
+    def __init__(
+        self, offset: float, weight_pow_sc: float = 0.1, max_inverse: float = 1e6
+    ):
         self.offset = offset
         self.weight_pow_sc = weight_pow_sc
+        self.max_inverse = max_inverse
 
     def transform_mean(self, x: np.ndarray) -> np.ndarray:
         return np.log(self.offset + x)
 
     def inverse_transform_mean(self, x: np.ndarray) -> np.ndarray:
-        return np.maximum(0.0, np.exp(x) - self.offset)
+        return np.maximum(
+            0.0, np.exp(np.minimum(x, np.log(self.max_inverse))) - self.offset
+        )
 
     def transform_weight(self, w: np.ndarray, mean: np.ndarray) -> np.ndarray:
         # pure math would give weight_pow_sc = 1, but then
