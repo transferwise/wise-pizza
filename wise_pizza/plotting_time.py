@@ -104,8 +104,22 @@ def plot_ts_pair(
         subplot_titles=subplot_titles,
         specs=[[{"secondary_y": True}] * 3] * num_rows,
     )
-    plot_single_ts(wgt_plot_data, fig, col_nums=(1, None), showlegend=False)  # 1, None
-    plot_single_ts(totals_plot_data, fig, col_nums=(3, 2))  # 3,2
+    min_impacts1, max_impacts1 = plot_single_ts(
+        wgt_plot_data, fig, col_nums=(1, None), showlegend=False
+    )  # 1, None
+    min_impacts32, max_impacts32 = plot_single_ts(
+        totals_plot_data, fig, col_nums=(3, 2)
+    )  # 3,2
+
+    min_impacts1 = zip(*min_impacts1)
+    min_impact_final1 = [min(dim) for dim in min_impacts1]
+    max_impacts1 = zip(*max_impacts1)
+    max_impact_final1 = [max(dim) for dim in max_impacts1]
+
+    min_impacts32 = zip(*min_impacts32)
+    min_impact_final32 = [min(dim) for dim in min_impacts32]
+    max_impacts32 = zip(*max_impacts32)
+    max_impact_final32 = [max(dim) for dim in max_impacts32]
 
     for i in range(len(fig.layout.annotations)):
         fig.layout.annotations[i].font.size = 10
@@ -117,6 +131,30 @@ def plot_ts_pair(
         height=height,
     )
 
+    # # Update secondary y-axis for each column
+    for row in range(1, num_rows + 1):
+        fig.update_yaxes(
+            range=[min_impact_final1[0], max_impact_final1[0]],
+            secondary_y=True,
+            row=row,
+            col=1,
+        )
+
+    for row in range(1, num_rows + 1):
+        fig.update_yaxes(
+            range=[min_impact_final32[1], max_impact_final32[1]],
+            secondary_y=True,
+            row=row,
+            col=2,
+        )
+
+    for row in range(1, num_rows + 1):
+        fig.update_yaxes(
+            range=[min_impact_final32[0], max_impact_final32[0]],
+            secondary_y=True,
+            row=row,
+            col=3,
+        )
     if plot_is_static:
         image_bytes = to_image(fig, format="png", scale=2)
         return Image(image_bytes, height=height, width=width)
@@ -130,10 +168,12 @@ def plot_ts_pair(
 def plot_single_ts(
     plotdata: PlotData, fig, showlegend: bool = True, col_nums: Tuple[int, int] = (1, 2)
 ):
+    min_impacts = []
+    max_impacts = []
     for i, s in enumerate(plotdata.nonflat_segments):
         agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
         # Create subplots
-        simple_ts_plot(
+        min_impact, max_impact = simple_ts_plot(
             fig,
             agg_df["time"],
             agg_df["totals"],
@@ -144,14 +184,15 @@ def plot_single_ts(
             showlegend=False,
             col_nums=col_nums,
         )
+        min_impacts.append(min_impact)
+        max_impacts.append(max_impact)
 
     # Show the actuals for stuff not in segments
     outside = np.abs(sum([s["dummy"] for s in plotdata.nonflat_segments])) < 1e-8
 
     left = plotdata.df[outside].groupby("time", as_index=False).sum()
     all_data = plotdata.df.groupby("time", as_index=False).sum()
-
-    simple_ts_plot(
+    min_impact, max_impact = simple_ts_plot(
         fig,
         all_data["time"],
         all_data["totals"],
@@ -164,6 +205,10 @@ def plot_single_ts(
         showlegend=showlegend,
         col_nums=col_nums,
     )
+    min_impacts.insert(0, min_impact)
+    max_impacts.insert(0, max_impact)
+
+    return min_impacts, max_impacts
 
 
 def plot_weights(plotdata: PlotData, fig, col_num: int = 1):
@@ -171,7 +216,7 @@ def plot_weights(plotdata: PlotData, fig, col_num: int = 1):
         agg_df = plotdata.df[s["dummy"] == 1.0].groupby("time", as_index=False).sum()
         zeros = np.zeros(len(agg_df))
         # Create subplots
-        simple_ts_plot(
+        min_impact, max_impact = simple_ts_plot(
             fig,
             agg_df["time"],
             agg_df["weights"],
@@ -189,7 +234,7 @@ def plot_weights(plotdata: PlotData, fig, col_num: int = 1):
     left = plotdata.df[outside].groupby("time", as_index=False).sum()
     all_data = plotdata.df.groupby("time", as_index=False).sum()
 
-    simple_ts_plot(
+    min_impact, max_impact = simple_ts_plot(
         fig,
         all_data["time"],
         all_data["weights"],
@@ -320,6 +365,8 @@ def simple_ts_plot(
     showlegend: bool = False,
     col_nums: Tuple[int, int] = (1, 2),
 ):
+    min_impact = []
+    max_impact = []
     for col in col_nums:
         if col == col_nums[0]:
             mult = 1.0
@@ -354,10 +401,14 @@ def simple_ts_plot(
                 col=col,
             )
         if reg_seg is not None:
+
+            impact = reg_seg * mult
+            min_impact.append(min(impact))
+            max_impact.append(max(impact))
             fig.add_trace(
                 go.Scatter(
                     x=time,
-                    y=reg_seg * mult,
+                    y=impact,
                     mode="lines",
                     name=f"Segment's reg contribution (Right axis)",
                     line=dict(color="#9fe870"),
@@ -379,3 +430,5 @@ def simple_ts_plot(
                 row=row_num,
                 col=col,
             )
+
+    return min_impact, max_impact
