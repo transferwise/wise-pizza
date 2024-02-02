@@ -4,6 +4,9 @@ from typing import List, Dict, Any, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from IPython.display import Image, display
+import plotly.io as pio
+from plotly.io import to_image
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -25,6 +28,8 @@ def plot_time(
     width: int = 1000,
     height: int = 1000,
     average_name: Optional[str] = None,
+    plot_is_static: bool = False,
+    return_fig: bool = False,
 ):
     plot_data = preprocess_for_ts_plot(sf, average_name)
     num_rows = len(plot_data.nonflat_segments) + 1
@@ -48,7 +53,14 @@ def plot_time(
         width=width,
         height=height,
     )
-    fig.show()
+    if plot_is_static:
+        image_bytes = to_image(fig, format="png", scale=2)
+        return Image(image_bytes, height=height, width=width)
+    else:
+        if return_fig:
+            return fig
+        else:
+            fig.show()
 
 
 def plot_ts_pair(
@@ -57,6 +69,8 @@ def plot_ts_pair(
     width,
     height,
     average_name: str = None,
+    plot_is_static: bool = False,
+    return_fig: bool = False,
     use_fitted_weights: bool = False,
 ):
     # if use_fitted_weights:
@@ -102,7 +116,15 @@ def plot_ts_pair(
         width=width,
         height=height,
     )
-    fig.show()
+
+    if plot_is_static:
+        image_bytes = to_image(fig, format="png", scale=2)
+        return Image(image_bytes, height=height, width=width)
+    else:
+        if return_fig:
+            return fig
+        else:
+            fig.show()
 
 
 def plot_single_ts(
@@ -246,13 +268,19 @@ def preprocess_for_ts_plot(
         global_time_label = ""
 
     seg_names = ["All" + global_time_label] + [
-        str(drop_time(s["segment"])) for s in nonflat_segments
+        drop_time(s["segment"]) for s in nonflat_segments
     ]
     sub_titles = [
         [
-            f"{sf.size_name} for {s} ",
-            f"{average_name} for {s}",
-            f"{sf.total_name} for {s}",
+            f"{sf.size_name} for <br>" + f"{s}",
+            f"{average_name} for <br>" + f"{s}",
+            f"{sf.total_name} for <br>" + f"{s}",
+        ]
+        if s != "All" and s != global_time_label
+        else [
+            f"{sf.size_name} for " + "<br>".join([key for key in s]),
+            f"{average_name} for " + "<br>".join([key for key in s]),
+            f"{sf.total_name} for " + "<br>".join([key for key in s]),
         ]
         for s in seg_names
     ]
@@ -306,7 +334,7 @@ def simple_ts_plot(
                 x=time,
                 y=totals * mult,
                 name=f"Actuals",
-                marker=dict(color="orange"),
+                marker=dict(color="#ffc091"),
                 showlegend=showlegend and col == col_nums[0],
             ),
             row=row_num,
@@ -319,7 +347,7 @@ def simple_ts_plot(
                     y=reg_totals * mult,
                     mode="lines",
                     name=f"Regression",
-                    line=dict(color="blue"),
+                    line=dict(color="#a0e1e1"),
                     showlegend=showlegend and col == col_nums[0],
                 ),
                 row=row_num,
@@ -332,7 +360,7 @@ def simple_ts_plot(
                     y=reg_seg * mult,
                     mode="lines",
                     name=f"Segment's reg contribution (Right axis)",
-                    line=dict(color="teal"),
+                    line=dict(color="#9fe870"),
                     showlegend=showlegend and col == col_nums[0],
                 ),
                 row=row_num,
@@ -345,7 +373,7 @@ def simple_ts_plot(
                     x=time,
                     y=leftover_totals if col == 1 else leftover_avgs,
                     name=f"Leftover actuals",
-                    marker=dict(color="purple"),
+                    marker=dict(color="#ff685f"),
                     showlegend=showlegend and col == col_nums[0],
                 ),
                 row=row_num,
