@@ -10,3 +10,4 @@ tqdm
 cloudpickle
 pivottablejs
 streamlit==1.28.0
+nbformat>=4.2.0

@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.sparse import vstack, csr_array, issparse
 from scipy.linalg import svd, expm
 
-from wise_pizza.solver import solve_lasso, solve_lp
+from wise_pizza.solver import solve_lasso, solve_lp, solve_omp
 
 
 def find_alpha(
@@ -13,7 +13,7 @@ def find_alpha(
     min_nonzeros=None,
     verbose=0,
     max_iter: int = 100,
-    solver: str = "lp",
+    solver: str = "lasso",
     use_proj=None,
     constrain_signs=True,
     adding_up_regularizer=False,
@@ -122,6 +122,10 @@ def find_alpha(
         mat = X
         y = y_
 
+    if solver=="omp":
+        reg, nonzeros = solve_omp(mat.toarray(), y, min_nonzeros)
+        return reg, nonzeros
+
     alpha = 2 * max(y)
     nonzeros = []
     iter = 0
@@ -138,6 +142,9 @@ def find_alpha(
 
     if verbose:
         print_errors(np.zeros(X.shape[1]))
+
+
+
 
     while len(nonzeros) < min_nonzeros:
         alpha /= 2
@@ -208,10 +215,11 @@ def find_alpha(
     reg = solve(
         X_filt,
         y,
-        1e-3 * alpha,
+        1e-3 * min(alpha, 1.0),
         constrain_signs=constrain_signs,
         verbose=verbose,
         drop_last_row=adding_up_regularizer,
+        # fit_intercept=not use_proj
     )
     return reg, nonzeros
 

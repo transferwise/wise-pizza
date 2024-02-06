@@ -1,11 +1,7 @@
-from typing import Optional
-
 import plotly.graph_objects as go
 import plotly.io as pio
 from plotly.io import to_image
 from plotly.subplots import make_subplots
-
-from wise_pizza.slicer import SliceFinder
 
 pio.templates.default = "plotly_white"
 
@@ -15,8 +11,8 @@ from IPython.display import Image, display
 
 
 def plot_split_segments(
-    sf_size: SliceFinder,
-    sf_avg: SliceFinder,
+    sf_size: "SliceFinder",
+    sf_avg: "SliceFinder",
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
@@ -133,8 +129,8 @@ def plot_split_segments(
 
         # Create a layout
         layout = go.Layout(
-            title="Relevant cluster names", title_x=0  # Center the title
-        )
+            title="Relevant cluster names", title_x=0
+        )  # Center the title
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
@@ -172,7 +168,7 @@ def plot_split_segments(
 
 
 def plot_segments(
-    sf: SliceFinder,
+    sf: "SliceFinder",
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
@@ -264,8 +260,8 @@ def plot_segments(
 
         # Create a layout
         layout = go.Layout(
-            title="Relevant cluster names", title_x=0  # Center the title
-        )
+            title="Relevant cluster names", title_x=0
+        )  # Center the title
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)
@@ -303,7 +299,7 @@ def plot_segments(
                 fig2.show()
 
 
-def waterfall_args(sf: SliceFinder):
+def waterfall_args(sf: "SliceFinder"):
     """
     Waterfall plot arguments
     @param sf: SliceFinder
@@ -330,7 +326,7 @@ def waterfall_args(sf: SliceFinder):
     }
 
 
-def waterfall_layout_args(sf: SliceFinder, width: int = 1000, height: int = 1000):
+def waterfall_layout_args(sf: "SliceFinder", width: int = 1000, height: int = 1000):
     """
     Waterfall plot layout arguments
     @param sf: SliceFinder
@@ -360,7 +356,7 @@ def waterfall_layout_args(sf: SliceFinder, width: int = 1000, height: int = 1000
 
 
 def plot_waterfall(
-    sf: SliceFinder,
+    sf: "SliceFinder",
     plot_is_static: bool = False,
     width: int = 1000,
     height: int = 1000,
@@ -388,7 +384,7 @@ def plot_waterfall(
     fig.update_layout(
         title="Segments contributing most to the change",
         #         showlegend = True,
-        **waterfall_layout_args(sf, width, height)
+        **waterfall_layout_args(sf, width, height),
     )
 
     if cluster_values:
@@ -407,8 +403,8 @@ def plot_waterfall(
 
         # Create a layout
         layout = go.Layout(
-            title="Relevant cluster names", title_x=0  # Center the title
-        )
+            title="Relevant cluster names", title_x=0
+        )  # Center the title
 
         # Create a figure
         fig2 = go.Figure(data=[table_trace], layout=layout)

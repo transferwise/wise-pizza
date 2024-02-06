@@ -6,14 +6,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from wise_pizza.data_sources.synthetic import synthetic_data
+from wise_pizza.data_sources.synthetic import synthetic_data, synthetic_ts_data
 from wise_pizza.explain import (
     explain_changes_in_average,
     explain_changes_in_totals,
     explain_levels,
+    explain_timeseries,
 )
 from wise_pizza.segment_data import SegmentData
 from wise_pizza.solver import solve_lasso, solve_lp
+from wise_pizza.time import create_time_basis
+from wise_pizza.plotting_time import plot_time
 
 np.random.seed(42)
 
@@ -137,6 +140,10 @@ def test_categorical():
 def test_synthetic_template(nan_percent: float):
     all_data = synthetic_data(init_len=1000)
     data = all_data.data
+
+    data.loc[(data["dim0"] == 0) & (data["dim1"] == 1), "totals"] += 100
+    data.loc[(data["dim1"] == 0) & (data["dim2"] == 1), "totals"] += 300
+
     if nan_percent > 0:
         data = values_to_nan(data, nan_percent)
     sf = explain_levels(
@@ -152,6 +159,48 @@ def test_synthetic_template(nan_percent: float):
     print("***")
     for s in sf.segments:
         print(s)
+
+    assert abs(sf.segments[0]["coef"] - 300) < 2
+    assert abs(sf.segments[1]["coef"] - 100) < 2
+
+    # sf.plot()
+    print("yay!")
+
+
+@pytest.mark.parametrize("nan_percent", [0.0, 1.0])
+def test_synthetic_ts_template(nan_percent: float):
+    all_data = synthetic_ts_data(init_len=10000)
+
+    # Add some big trends to the data
+    # TODO: insert trend break patterns too
+    months = np.array(sorted(all_data.data[all_data.time_col].unique()))
+    basis = create_time_basis(months, baseline_dims=1)
+    joined = pd.merge(all_data.data, basis, left_on="TIME", right_index=True)
+    df = joined.drop(columns=basis.columns)
+
+    loc1 = (df["dim0"] == 0) & (df["dim1"] == 1)
+    loc2 = (df["dim1"] == 0) & (df["dim2"] == 1)
+
+    df.loc[loc1, "totals"] += 100 * joined.loc[loc1, "Slope"]
+    df.loc[loc2, "totals"] += 300 * joined.loc[loc2, "Slope"]
+
+    if nan_percent > 0:
+        df = values_to_nan(df, nan_percent)
+    sf = explain_timeseries(
+        df,
+        dims=all_data.dimensions,
+        total_name=all_data.segment_total,
+        time_name=all_data.time_col,
+        size_name=all_data.segment_size,
+        max_depth=2,
+        min_segments=5,
+        verbose=True,
+    )
+    print("***")
+    for s in sf.segments:
+        print(s)
+
+    plot_time(sf)
 
     assert abs(sf.segments[0]["coef"] - 300) < 2
     assert abs(sf.segments[1]["coef"] - 100) < 2

@@ -1,12 +1,14 @@
+import copy
 import itertools
 from typing import Optional, List, Dict, Sequence
 from collections import defaultdict
+import math
 
 import numpy as np
 import scipy
 from tqdm import tqdm
 import pandas as pd
-from scipy.sparse import csc_matrix, hstack
+from scipy.sparse import csc_matrix, hstack, diags
 
 
 def join_to_sparse(dim_df: pd.DataFrame, dim_name: str, verbose=0):
@@ -101,11 +103,11 @@ def sparse_dummy_matrix(
     verbose=0,
     force_dim: Optional[str] = None,
     clusters: Optional[Dict[str, Sequence[str]]] = None,
-    cluster_names: Optional[Dict[str,str]] = None
+    cluster_names: Optional[Dict[str, str]] = None,
+    time_basis: Optional[pd.DataFrame] = None,
+    max_out_size: int = 1e8,  # threshold num of elements in out matrix
 ):
     # generate a sparse dummy matrix based on all the combinations
-    # TODO: do a  nested sparse regression fit to form groups of dim values, pos, neg, null
-    # TODO: first calculate the matrix size, scale down max_depth if matrix too big
     if force_dim is None:
         dims = list(dim_df.columns)
     else:
@@ -118,8 +120,6 @@ def sparse_dummy_matrix(
     # drop dimensions with only one value, for clarity
     dims = [d for d in dims if len(dim_df[d].unique()) > 1]
 
-    defs = []
-    mats = []
     dims_range_min = min(len(dims), max(1, min_depth))
     dims_range_max = min(len(dims) + 1, max_depth + 1)
     dims_range = range(dims_range_min, dims_range_max)
@@ -130,13 +130,23 @@ def sparse_dummy_matrix(
         this_mat, these_defs = join_to_sparse(dim_df, d, verbose=verbose)
         dummy_cache[d] = {this_def: this_mat[:, i : i + 1] for i, this_def in enumerate(these_defs)}
 
-    # TODO: maps dimension names to dimension values
     dims_dict = {dim: list(dim_df[dim].unique()) + list(clusters[dim]) for dim in dim_df.columns}
+
+    defs = []
+    mats = []
+
+    # Add raw time vectors
+    if time_basis is not None:
+        for b_name, b_mat in time_basis.items():
+            defs.append({"time": b_name})
+            mats.append(b_mat)
 
     # Go over all possible depths
     for num_dims in tqdm(dims_range) if verbose else dims_range:
         # for each depth, sample the possible dimension combinations
         for these_dims in itertools.combinations(dims, num_dims):
+            if verbose:
+                print(f"Processing {these_dims}")
             if num_dims == 1 and these_dims[0] == "Change from":
                 continue
             if force_dim is None:
@@ -146,16 +156,62 @@ def sparse_dummy_matrix(
 
             segment_constraints = segment_defs_new(dims_dict, used_dims)
             this_mat, these_defs = construct_dummies_new(used_dims, segment_constraints, dummy_cache, cluster_names)
+            assert len(these_defs) == this_mat.shape[1]
 
-            # these_defs = segment_defs(dim_df, used_dims, verbose=verbose)
-            # this_mat = construct_dummies(these_defs, dummy_cache)
-            mats.append(this_mat)
-            defs += these_defs
-    mat = hstack(mats)
-    return mat, defs
+            if time_basis is None:
+                mats.append(this_mat)
+                defs += these_defs
+            else:
+                for b_name, b_mat in time_basis.items():
+                    # Multiply the dummies by the time profile
+                    if verbose:
+                        print(f"Processing {b_name}")
+                    re_defs = copy.deepcopy(these_defs)
+                    for d in re_defs:
+                        d["time"] = b_name
+
+                    # let's split it even deeper to deal with very wide matrices
+                    step = math.ceil(max_out_size / b_mat.shape[0])
+                    for i in range(0, len(re_defs), step):
+                        end_ind = min(i + step, len(re_defs))
+                        defs_slice = re_defs[i:end_ind]
+                        mat_slice = this_mat[:, i:end_ind]
+                        re_mat = diags(b_mat.A.flatten()) @ mat_slice
+                        re_mat = csc_matrix(re_mat)
+                        assert len(defs_slice) == re_mat.shape[1]
+
+                        mats.append(re_mat)
+                        defs += defs_slice
+
+                        test_size = len(defs) * mats[0].shape[0]
+                        if test_size >= max_out_size:
+                            if verbose:
+                                print(f"Threshold reached at {test_size}, dumping")
+                            mat = hstack(mats)
+                            assert len(defs) == mat.shape[1]
+                            yield mat, defs
+                            defs = []
+                            mats = []
+            if len(mats):
+                test_size = len(defs) * mats[0].shape[0]
+                if test_size >= max_out_size:
+                    if verbose:
+                        print(f"Threshold reached at {test_size}, dumping")
+                    mat = hstack(mats)
+                    assert len(defs) == mat.shape[1]
+                    yield mat, defs
+                    defs = []
+                    mats = []
+    # mop up
+    if len(defs):
+        mat = hstack(mats)
+        assert len(defs) == mat.shape[1]
+        yield mat, defs
+    else:
+        yield None, None
 
 
-def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> List[Dict[str, str]]:
+def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) -> np.ndarray:
     # Look at all possible combinations of dimension values for the chosen dimensions
     if len(used_dims) == 1:
         return np.array(dims_dict[used_dims[0]]).reshape(-1, 1)
@@ -170,9 +226,9 @@ def segment_defs_new(dims_dict: Dict[str, Sequence[str]], used_dims: List[str]) 
 
 def construct_dummies_new(
     used_dims: List[str],
-        segment_defs: np.ndarray,
-        cache: Dict[str, Dict[str, np.ndarray]],
-        cluster_names: Optional[Dict[str,str]] = None
+    segment_defs: np.ndarray,
+    cache: Dict[str, Dict[str, np.ndarray]],
+    cluster_names: Optional[Dict[str, str]] = None,
 ) -> scipy.sparse.csc_matrix:
     dummies = []
     segments = []

@@ -10,6 +10,7 @@ class SegmentData:
     dimensions: List[str]
     segment_total: str
     segment_size: Optional[str] = None
+    time_col: Optional[str] = None
     segment_std: Optional[str] = None
 
     def mean(self):
