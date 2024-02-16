@@ -145,6 +145,8 @@ class TransformedSliceFinder(SliceFinderPlottingInterface):
         # Now let's make sure single-segment impacts add up to total impact
         self.segment_mult = 1.0
 
+        self.relevant_cluster_names = sf.relevant_cluster_names
+
         # Try to make individual segment  impacts add up to total regression post-transform
         # Didn't really make much difference
         # sum_marginals = 0

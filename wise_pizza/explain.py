@@ -493,11 +493,16 @@ def explain_timeseries(
     assert almost_equals(fitted_sizes, sf2.weights)
 
     out = SlicerPair(sf1, sf2)
-    out.plot = lambda width=600, height=1200, average_name=None, use_fitted_weights=False: plot_ts_pair(
+    out.relevant_cluster_names1 = sf1.relevant_cluster_names
+    out.relevant_cluster_names2 = sf2.relevant_cluster_names
+
+    out.plot = lambda plot_is_static=False, width=600, height=1200, return_fig=False, average_name=None, use_fitted_weights=False: plot_ts_pair(
         out.s1,
         out.s2,
+        plot_is_static=plot_is_static,
         width=width,
         height=height,
+        return_fig=return_fig,
         average_name=average_name,
         use_fitted_weights=use_fitted_weights,
     )
@@ -560,7 +565,7 @@ def _explain_timeseries(
         for c in chosen_cols:
             pre_basis[c + "_a"] = pre_basis["Slope"] - pre_basis[c]
 
-        print("yay!")
+        # print("yay!")
 
     df, avg_df = add_average_over_time(
         df,
@@ -635,10 +640,10 @@ def _explain_timeseries(
     # sf.reg.intercept_ += average
     sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False, average_name=None: plot_time(
         sf,
-        # plot_is_static=plot_is_static,
+        plot_is_static=plot_is_static,
         width=width,
         height=height,
-        # return_fig=return_fig,
+        return_fig=return_fig,
         average_name=average_name,
     )
     sf.task = "time"
