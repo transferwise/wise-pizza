@@ -388,7 +388,10 @@ def explain_timeseries(
             fit_sizes = True
 
     if fit_log_space:
-        tf = LogTransform(offset=1, weight_pow_sc=log_space_weight_sc)
+        tf = LogTransform(
+            offset=1,
+            weight_pow_sc=log_space_weight_sc,
+        )
     else:
         tf = IdentityTransform()
 

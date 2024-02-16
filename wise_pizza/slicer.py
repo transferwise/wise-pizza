@@ -139,6 +139,9 @@ class SliceFinder:
         assert min(weights) >= 0
         assert np.sum(np.abs(totals[weights == 0])) == 0
 
+        # Cast all dimension values to strings
+        dim_df = dim_df.astype(str)
+
         dims = list(dim_df.columns)
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
