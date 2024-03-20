@@ -14,6 +14,7 @@ from wise_pizza.cluster import guided_kmeans
 from wise_pizza.preselect import HeuristicSelector
 from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
+from wise_pizza.tree import tree_solver
 
 
 def _summary(obj) -> str:
@@ -116,7 +117,7 @@ class SliceFinder:
         @param max_segments: Maximum number of segments to find, defaults to min_segments
         @param min_depth: Minimum number of dimension to constrain in segment definition
         @param max_depth: Maximum number of dimension to constrain in segment definition
-        @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
+        @param solver: Valid values are "lasso" (default), "tree" (for non-overlapping segments), "omp", or "lp"
         @param verbose: If set to a truish value, lots of debug info is printed to console
         @param force_dim: To add dim
         @param force_add_up: To force add up
@@ -125,6 +126,8 @@ class SliceFinder:
         group of segments from the same dimension with similar naive averages
 
         """
+
+        assert solver.lower() in ["lasso", "tree", "omp", "lp"]
         min_segments, max_segments = clean_up_min_max(min_segments, max_segments)
         if verbose is not None:
             self.verbose = verbose
@@ -148,6 +151,7 @@ class SliceFinder:
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
+
         if time_col is not None:
             dim_df["__time"] = time_col
             dim_df = pd.merge(dim_df, time_basis, left_on="__time", right_index=True)
@@ -179,6 +183,14 @@ class SliceFinder:
         # of dimension values with similar outcomes
         clusters = defaultdict(list)
         self.cluster_names = {}
+
+        if solver == "tree":
+            if cluster_values:
+                warnings.warn(
+                    "Ignoring cluster_values argument as it's irrelevant for tree solver"
+                )
+                cluster_values = False
+
         if cluster_values:
             for dim in dims:
                 if (
@@ -209,40 +221,49 @@ class SliceFinder:
         dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
         self.dim_df = dim_df
 
-        # lazy calculation of the dummy matrix (calculation can be very slow)
-        if (
-            list(dim_df.columns) != self.dims
-            or max_depth != self.max_depth
-            or self.X is not None
-            and len(dim_df) != self.X.shape[1]
-        ):
-            self.X, self.col_defs = self._init_mat(
-                dim_df,
-                min_depth,
-                max_depth,
-                force_dim=force_dim,
-                clusters=clusters,
-                time_basis=self.time_basis,
+        if solver == "tree":
+            self.X, self.reg, self.col_defs = tree_solver(
+                self.dim_df, self.weights, self.totals, self.time_basis
             )
-            assert len(self.col_defs) == self.X.shape[1]
-            self.min_depth = min_depth
-            self.max_depth = max_depth
-            self.dims = list(dim_df.columns)
+            self.nonzeros = np.array(range(self.X.shape[0])) == 1.0
+            Xw = csc_matrix(diags(self.weights) @ self.X)
+        else:
 
-        Xw = csc_matrix(diags(self.weights) @ self.X)
+            # lazy calculation of the dummy matrix (calculation can be very slow)
+            if (
+                list(dim_df.columns) != self.dims
+                or max_depth != self.max_depth
+                or self.X is not None
+                and len(dim_df) != self.X.shape[1]
+            ):
+                self.X, self.col_defs = self._init_mat(
+                    dim_df,
+                    min_depth,
+                    max_depth,
+                    force_dim=force_dim,
+                    clusters=clusters,
+                    time_basis=self.time_basis,
+                )
+                assert len(self.col_defs) == self.X.shape[1]
+                self.min_depth = min_depth
+                self.max_depth = max_depth
+                self.dims = list(dim_df.columns)
 
-        if self.verbose:
-            print("Starting solve!")
-        self.reg, self.nonzeros = find_alpha(
-            Xw,
-            self.totals,
-            max_nonzeros=max_segments,
-            solver=solver,
-            min_nonzeros=min_segments,
-            verbose=self.verbose,
-            adding_up_regularizer=force_add_up,
-            constrain_signs=constrain_signs,
-        )
+            Xw = csc_matrix(diags(self.weights) @ self.X)
+
+            if self.verbose:
+                print("Starting solve!")
+            self.reg, self.nonzeros = find_alpha(
+                Xw,
+                self.totals,
+                max_nonzeros=max_segments,
+                solver=solver,
+                min_nonzeros=min_segments,
+                verbose=self.verbose,
+                adding_up_regularizer=force_add_up,
+                constrain_signs=constrain_signs,
+            )
+
         if self.verbose:
             print("Solver done!!")
 
