@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 from scipy.sparse import vstack, csr_array, issparse
-from scipy.linalg import svd, expm
+from scipy.linalg import svd
 
-from wise_pizza.solver import solve_lasso, solve_lp, solve_omp
+from wise_pizza.solve.solver import solve_lasso, solve_lp, solve_omp
 
 
 def find_alpha(
@@ -122,7 +122,7 @@ def find_alpha(
         mat = X
         y = y_
 
-    if solver=="omp":
+    if solver == "omp":
         reg, nonzeros = solve_omp(mat.toarray(), y, min_nonzeros)
         return reg, nonzeros
 
@@ -142,9 +142,6 @@ def find_alpha(
 
     if verbose:
         print_errors(np.zeros(X.shape[1]))
-
-
-
 
     while len(nonzeros) < min_nonzeros:
         alpha /= 2

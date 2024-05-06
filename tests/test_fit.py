@@ -14,7 +14,7 @@ from wise_pizza.explain import (
     explain_timeseries,
 )
 from wise_pizza.segment_data import SegmentData
-from wise_pizza.solver import solve_lasso, solve_lp
+from wise_pizza.solve.solver import solve_lasso, solve_lp
 from wise_pizza.time import create_time_basis
 from wise_pizza.plotting_time import plot_time
 

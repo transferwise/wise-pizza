@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix, diags
 
-from wise_pizza.find_alpha import clean_up_min_max, find_alpha
+from wise_pizza.solve.find_alpha import clean_up_min_max, find_alpha
 from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import guided_kmeans
 from wise_pizza.preselect import HeuristicSelector
 from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
-from wise_pizza.tree import tree_solver
+from wise_pizza.solve.tree import tree_solver
 
 
 def _summary(obj) -> str:
