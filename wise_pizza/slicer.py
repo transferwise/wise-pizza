@@ -10,7 +10,7 @@ from scipy.sparse import csc_matrix, diags
 
 from wise_pizza.solve.find_alpha import clean_up_min_max, find_alpha
 from wise_pizza.make_matrix import sparse_dummy_matrix
-from wise_pizza.cluster import guided_kmeans
+from wise_pizza.cluster import make_clusters
 from wise_pizza.preselect import HeuristicSelector
 from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
@@ -192,31 +192,11 @@ class SliceFinder:
                 cluster_values = False
 
         if cluster_values:
+            self.cluster_names = make_clusters(dim_df, dims)
             for dim in dims:
-                if (
-                    len(dim_df[dim].unique()) >= 6
-                ):  # otherwise what's the point in clustering?
-                    grouped_df = (
-                        dim_df[[dim, "totals", "weights"]]
-                        .groupby(dim, as_index=False)
-                        .sum()
-                    )
-                    grouped_df["avg"] = grouped_df["totals"] / grouped_df["weights"]
-                    grouped_df["cluster"], _ = guided_kmeans(grouped_df["avg"])
-                    pre_clusters = (
-                        grouped_df[["cluster", dim]]
-                        .groupby("cluster")
-                        .agg({dim: lambda x: "@@".join(x)})
-                        .values
-                    )
-                    # filter out clusters with only one element
-                    these_clusters = [c for c in pre_clusters.reshape(-1) if "@@" in c]
-                    # create short cluster names
-                    for i, c in enumerate(these_clusters):
-                        self.cluster_names[f"{dim}_cluster_{i+1}"] = c
-                    clusters[dim] = [
-                        c for c in self.cluster_names.keys() if c.startswith(dim)
-                    ]
+                clusters[dim] = [
+                    c for c in self.cluster_names.keys() if c.startswith(dim)
+                ]
 
         dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
         self.dim_df = dim_df
