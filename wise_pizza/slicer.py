@@ -15,6 +15,7 @@ from wise_pizza.preselect import HeuristicSelector
 from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
 from wise_pizza.solve.tree import tree_solver
+from wise_pizza.solve.solver import solve_lasso
 
 
 def _summary(obj) -> str:
@@ -187,28 +188,34 @@ class SliceFinder:
         if solver == "tree":
             if cluster_values:
                 warnings.warn(
-                    "Ignoring cluster_values argument as it's irrelevant for tree solver"
+                    "Ignoring cluster_values argument as tree solver makes its own clusters"
                 )
-                cluster_values = False
-
-        if cluster_values:
-            self.cluster_names = make_clusters(dim_df, dims)
-            for dim in dims:
-                clusters[dim] = [
-                    c for c in self.cluster_names.keys() if c.startswith(dim)
-                ]
-
-        dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
-        self.dim_df = dim_df
-
-        if solver == "tree":
-            self.X, self.reg, self.col_defs = tree_solver(
-                self.dim_df, self.weights, self.totals, self.time_basis
+            self.X, self.col_defs, self.cluster_names = tree_solver(
+                dim_df=dim_df,
+                dims=dims,
+                time_basis=self.time_basis,
+                num_leaves=max_segments,
             )
-            self.nonzeros = np.array(range(self.X.shape[0])) == 1.0
+            self.nonzeros = np.array(range(self.X.shape[1]))
             Xw = csc_matrix(diags(self.weights) @ self.X)
+            self.reg = solve_lasso(
+                Xw.toarray(),
+                self.totals,
+                alpha=1e-5,
+                verbose=self.verbose,
+                fit_intercept=False,
+            )
+            print("")
         else:
+            if cluster_values:
+                self.cluster_names = make_clusters(dim_df, dims)
+                for dim in dims:
+                    clusters[dim] = [
+                        c for c in self.cluster_names.keys() if c.startswith(dim)
+                    ]
 
+            dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
+            self.dim_df = dim_df
             # lazy calculation of the dummy matrix (calculation can be very slow)
             if (
                 list(dim_df.columns) != self.dims

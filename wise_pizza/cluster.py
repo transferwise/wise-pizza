@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Dict, Tuple
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -20,13 +21,13 @@ def guided_kmeans(X: np.ndarray, power_transform: bool = True) -> np.ndarray:
         X = X.values
 
     if power_transform:
-        if len(X[X > 0] > 1):
+        if len(X[X > 0]) > 1:
             X[X > 0] = (
                 PowerTransformer(standardize=False)
                 .fit_transform(X[X > 0].reshape(-1, 1))
                 .reshape(-1)
             )
-        if len(X[X < 0] > 1):
+        if len(X[X < 0]) > 1:
             X[X < 0] = (
                 -PowerTransformer(standardize=False)
                 .fit_transform(-X[X < 0].reshape(-1, 1))
@@ -80,3 +81,32 @@ def make_clusters(dim_df: pd.DataFrame, dims: List[str]):
             for i, c in enumerate(these_clusters):
                 cluster_names[f"{dim}_cluster_{i + 1}"] = c
     return cluster_names
+
+
+def nice_cluster_names(x: List[Dict[str, List[str]]]) -> Tuple[List[Dict], Dict]:
+    # first pass just populate cluster names
+    cluster_strings = defaultdict(set)
+    for xx in x:
+        for dim, v in xx.items():
+            if len(v) > 1:
+                cluster_strings[dim].add("@@".join(v))
+
+    cluster_names = {}
+    reverse_cluster_names = {}
+    for dim, clusters in cluster_strings.items():
+        reverse_cluster_names[dim] = {}
+        for i, c in enumerate(clusters):
+            cluster_names[f"{dim}_cluster_{i + 1}"] = c
+            reverse_cluster_names[dim][c] = f"{dim}_cluster_{i + 1}"
+
+    col_defs = []
+    for xx in x:
+        this_def = {}
+        for dim, v in xx.items():
+            if len(v) > 1:
+                this_def[dim] = reverse_cluster_names[dim]["@@".join(v)]
+            else:
+                this_def[dim] = v[0]
+        col_defs.append(this_def)
+
+    return col_defs, cluster_names
