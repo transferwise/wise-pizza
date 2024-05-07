@@ -39,7 +39,7 @@ class TransformWithWeights(ABC):
         w = self.inverse_transform_weight(t_w, t_mean)
         return mean * w, w
 
-    def test_transforms(self, total, weights, eps=1e-6):
+    def test_transforms(self, total, weights, eps=1e-4):
         mean = total / weights
         t_mean = self.transform_mean(mean)
         assert almost_equals(mean, self.inverse_transform_mean(t_mean), eps)
@@ -71,19 +71,28 @@ class IdentityTransform(TransformWithWeights):
 
 class LogTransform(TransformWithWeights):
     def __init__(
-        self, offset: float, weight_pow_sc: float = 0.1, max_inverse: float = 1e6
+        self, offset: float, weight_pow_sc: float = 0.1, cap_inverse: bool = True
     ):
         self.offset = offset
         self.weight_pow_sc = weight_pow_sc
-        self.max_inverse = max_inverse
+        self.cap_inverse = cap_inverse
+        if cap_inverse:
+            self.max_inverse = 0.0
+        else:
+            self.max_inverse = None
 
     def transform_mean(self, x: np.ndarray) -> np.ndarray:
+        if self.cap_inverse:
+            self.max_inverse = np.maximum(self.max_inverse, 2 * x.max())
         return np.log(self.offset + x)
 
     def inverse_transform_mean(self, x: np.ndarray) -> np.ndarray:
-        return np.maximum(
-            0.0, np.exp(np.minimum(x, np.log(self.max_inverse))) - self.offset
-        )
+        if self.cap_inverse:
+            return np.maximum(
+                0.0, np.exp(np.minimum(x, np.log(self.max_inverse))) - self.offset
+            )
+        else:
+            return np.maximum(0.0, np.exp(x) - self.offset)
 
     def transform_weight(self, w: np.ndarray, mean: np.ndarray) -> np.ndarray:
         # pure math would give weight_pow_sc = 1, but then

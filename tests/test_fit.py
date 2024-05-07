@@ -14,7 +14,7 @@ from wise_pizza.explain import (
     explain_timeseries,
 )
 from wise_pizza.segment_data import SegmentData
-from wise_pizza.solver import solve_lasso, solve_lp
+from wise_pizza.solve.solver import solve_lasso, solve_lp
 from wise_pizza.time import create_time_basis
 from wise_pizza.plotting_time import plot_time
 
@@ -33,7 +33,7 @@ size = "TRANSACTION_COUNT"
 # Too long, delete some values for quick starts, e.g. by deleting the parameters in nan_percent, size_one_percent
 deltas_test_values = [
     ("totals", "split_fits", "force_dim", "extra_dim"),  # how
-    ("lp", "lasso"),  # solver
+    ("lp", "lasso", "tree"),  # solver
     (True,),  # plot_is_static
     (explain_changes_in_average, explain_changes_in_totals),  # function
     (0.0, 90.0),  # nan_percent
@@ -44,7 +44,7 @@ deltas_test_cases = list(itertools.product(*deltas_test_values))
 
 # possible values for explain_levels
 levels_test_values = [
-    ("lp", "lasso"),  # solver
+    ("lp", "lasso", "tree"),  # solver
     (0.0, 90.0),  # nan_percent
     (0.0, 90.0),  # size_one_percent
 ]
@@ -136,9 +136,9 @@ def test_categorical():
     print("yay!")
 
 
-@pytest.mark.parametrize("nan_percent", [0.0, 1.0])
-def test_synthetic_template(nan_percent: float):
-    all_data = synthetic_data(init_len=1000)
+@pytest.mark.parametrize("nan_percent, clustering", [[0.0, False], [1.0, False]])
+def test_synthetic_template(nan_percent: float, clustering: bool):
+    all_data = synthetic_data(init_len=10000, dim_values=5)
     data = all_data.data
 
     data.loc[(data["dim0"] == 0) & (data["dim1"] == 1), "totals"] += 100
@@ -155,6 +155,7 @@ def test_synthetic_template(nan_percent: float):
         min_segments=5,
         verbose=1,
         solver="lp",
+        cluster_values=clustering,
     )
     print("***")
     for s in sf.segments:
@@ -162,6 +163,38 @@ def test_synthetic_template(nan_percent: float):
 
     assert abs(sf.segments[0]["coef"] - 300) < 2
     assert abs(sf.segments[1]["coef"] - 100) < 2
+
+    # sf.plot()
+    print("yay!")
+
+
+@pytest.mark.parametrize("nan_percent", [0.0, 1.0])
+def test_synthetic_template_tree(nan_percent: float):
+    all_data = synthetic_data(init_len=1000)
+    data = all_data.data
+
+    data.loc[(data["dim0"] == 0) & (data["dim1"] == 1), "totals"] += 200
+    data.loc[(data["dim1"] == 0) & (data["dim2"] == 1), "totals"] += 300
+
+    if nan_percent > 0:
+        data = values_to_nan(data, nan_percent)
+    sf = explain_levels(
+        data,
+        dims=all_data.dimensions,
+        total_name=all_data.segment_total,
+        size_name=all_data.segment_size,
+        max_depth=2,
+        min_segments=5,
+        verbose=1,
+        solver="tree",
+    )
+    print("***")
+    for s in sf.segments:
+        print(s)
+
+    # TODO: insert approppriate asserts
+    # assert abs(sf.segments[0]["coef"] - 300) < 2
+    # assert abs(sf.segments[1]["coef"] - 100) < 2
 
     # sf.plot()
     print("yay!")

@@ -8,12 +8,14 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix, diags
 
-from wise_pizza.find_alpha import clean_up_min_max, find_alpha
+from wise_pizza.solve.find_alpha import clean_up_min_max, find_alpha
 from wise_pizza.make_matrix import sparse_dummy_matrix
-from wise_pizza.cluster import guided_kmeans
+from wise_pizza.cluster import make_clusters
 from wise_pizza.preselect import HeuristicSelector
 from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
+from wise_pizza.solve.tree import tree_solver
+from wise_pizza.solve.solver import solve_lasso
 
 
 def _summary(obj) -> str:
@@ -116,7 +118,7 @@ class SliceFinder:
         @param max_segments: Maximum number of segments to find, defaults to min_segments
         @param min_depth: Minimum number of dimension to constrain in segment definition
         @param max_depth: Maximum number of dimension to constrain in segment definition
-        @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
+        @param solver: Valid values are "lasso" (default), "tree" (for non-overlapping segments), "omp", or "lp"
         @param verbose: If set to a truish value, lots of debug info is printed to console
         @param force_dim: To add dim
         @param force_add_up: To force add up
@@ -125,6 +127,8 @@ class SliceFinder:
         group of segments from the same dimension with similar naive averages
 
         """
+
+        assert solver.lower() in ["lasso", "tree", "omp", "lp"]
         min_segments, max_segments = clean_up_min_max(min_segments, max_segments)
         if verbose is not None:
             self.verbose = verbose
@@ -139,12 +143,16 @@ class SliceFinder:
         assert min(weights) >= 0
         assert np.sum(np.abs(totals[weights == 0])) == 0
 
+        # Cast all dimension values to strings
+        dim_df = dim_df.astype(str)
+
         dims = list(dim_df.columns)
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
+
         if time_col is not None:
             dim_df["__time"] = time_col
             dim_df = pd.merge(dim_df, time_basis, left_on="__time", right_index=True)
@@ -176,70 +184,73 @@ class SliceFinder:
         # of dimension values with similar outcomes
         clusters = defaultdict(list)
         self.cluster_names = {}
-        if cluster_values:
-            for dim in dims:
-                if (
-                    len(dim_df[dim].unique()) >= 6
-                ):  # otherwise what's the point in clustering?
-                    grouped_df = (
-                        dim_df[[dim, "totals", "weights"]]
-                        .groupby(dim, as_index=False)
-                        .sum()
-                    )
-                    grouped_df["avg"] = grouped_df["totals"] / grouped_df["weights"]
-                    grouped_df["cluster"], _ = guided_kmeans(grouped_df["avg"])
-                    pre_clusters = (
-                        grouped_df[["cluster", dim]]
-                        .groupby("cluster")
-                        .agg({dim: lambda x: "@@".join(x)})
-                        .values
-                    )
-                    # filter out clusters with only one element
-                    these_clusters = [c for c in pre_clusters.reshape(-1) if "@@" in c]
-                    # create short cluster names
-                    for i, c in enumerate(these_clusters):
-                        self.cluster_names[f"{dim}_cluster_{i+1}"] = c
+
+        if solver == "tree":
+            if cluster_values:
+                warnings.warn(
+                    "Ignoring cluster_values argument as tree solver makes its own clusters"
+                )
+            self.X, self.col_defs, self.cluster_names = tree_solver(
+                dim_df=dim_df,
+                dims=dims,
+                time_basis=self.time_basis,
+                num_leaves=max_segments,
+            )
+            self.nonzeros = np.array(range(self.X.shape[1]))
+            Xw = csc_matrix(diags(self.weights) @ self.X)
+            self.reg = solve_lasso(
+                Xw.toarray(),
+                self.totals,
+                alpha=1e-5,
+                verbose=self.verbose,
+                fit_intercept=False,
+            )
+            print("")
+        else:
+            if cluster_values:
+                self.cluster_names = make_clusters(dim_df, dims)
+                for dim in dims:
                     clusters[dim] = [
                         c for c in self.cluster_names.keys() if c.startswith(dim)
                     ]
 
-        dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
-        self.dim_df = dim_df
+            dim_df = dim_df[dims]  # if time_col is None else dims + ["__time"]]
+            self.dim_df = dim_df
+            # lazy calculation of the dummy matrix (calculation can be very slow)
+            if (
+                list(dim_df.columns) != self.dims
+                or max_depth != self.max_depth
+                or self.X is not None
+                and len(dim_df) != self.X.shape[1]
+            ):
+                self.X, self.col_defs = self._init_mat(
+                    dim_df,
+                    min_depth,
+                    max_depth,
+                    force_dim=force_dim,
+                    clusters=clusters,
+                    time_basis=self.time_basis,
+                )
+                assert len(self.col_defs) == self.X.shape[1]
+                self.min_depth = min_depth
+                self.max_depth = max_depth
+                self.dims = list(dim_df.columns)
 
-        # lazy calculation of the dummy matrix (calculation can be very slow)
-        if (
-            list(dim_df.columns) != self.dims
-            or max_depth != self.max_depth
-            or self.X is not None
-            and len(dim_df) != self.X.shape[1]
-        ):
-            self.X, self.col_defs = self._init_mat(
-                dim_df,
-                min_depth,
-                max_depth,
-                force_dim=force_dim,
-                clusters=clusters,
-                time_basis=self.time_basis,
+            Xw = csc_matrix(diags(self.weights) @ self.X)
+
+            if self.verbose:
+                print("Starting solve!")
+            self.reg, self.nonzeros = find_alpha(
+                Xw,
+                self.totals,
+                max_nonzeros=max_segments,
+                solver=solver,
+                min_nonzeros=min_segments,
+                verbose=self.verbose,
+                adding_up_regularizer=force_add_up,
+                constrain_signs=constrain_signs,
             )
-            assert len(self.col_defs) == self.X.shape[1]
-            self.min_depth = min_depth
-            self.max_depth = max_depth
-            self.dims = list(dim_df.columns)
 
-        Xw = csc_matrix(diags(self.weights) @ self.X)
-
-        if self.verbose:
-            print("Starting solve!")
-        self.reg, self.nonzeros = find_alpha(
-            Xw,
-            self.totals,
-            max_nonzeros=max_segments,
-            solver=solver,
-            min_nonzeros=min_segments,
-            verbose=self.verbose,
-            adding_up_regularizer=force_add_up,
-            constrain_signs=constrain_signs,
-        )
         if self.verbose:
             print("Solver done!!")
 

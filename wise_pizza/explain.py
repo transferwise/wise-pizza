@@ -361,6 +361,7 @@ def explain_timeseries(
     max_depth: int = 2,
     solver: str = "omp",
     verbose: bool = False,
+    constrain_signs: bool = False,
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
@@ -388,7 +389,10 @@ def explain_timeseries(
             fit_sizes = True
 
     if fit_log_space:
-        tf = LogTransform(offset=1, weight_pow_sc=log_space_weight_sc)
+        tf = LogTransform(
+            offset=1,
+            weight_pow_sc=log_space_weight_sc,
+        )
     else:
         tf = IdentityTransform()
 
@@ -415,6 +419,7 @@ def explain_timeseries(
             max_depth=max_depth,
             solver=solver,
             verbose=verbose,
+            constrain_signs=constrain_signs,
             cluster_values=cluster_values,
             time_basis=time_basis,
         )
@@ -441,6 +446,7 @@ def explain_timeseries(
         max_depth=max_depth,
         solver=solver,
         verbose=verbose,
+        constrain_signs=constrain_signs,
         cluster_values=cluster_values,
         time_basis=time_basis,
     )
@@ -477,6 +483,7 @@ def explain_timeseries(
         max_depth=max_depth,
         solver=solver,
         verbose=verbose,
+        constrain_signs=constrain_signs,
         cluster_values=cluster_values,
         time_basis=time_basis,
     )
