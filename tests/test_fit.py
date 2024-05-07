@@ -33,7 +33,7 @@ size = "TRANSACTION_COUNT"
 # Too long, delete some values for quick starts, e.g. by deleting the parameters in nan_percent, size_one_percent
 deltas_test_values = [
     ("totals", "split_fits", "force_dim", "extra_dim"),  # how
-    ("lp", "lasso"),  # solver
+    ("lp", "lasso", "tree"),  # solver
     (True,),  # plot_is_static
     (explain_changes_in_average, explain_changes_in_totals),  # function
     (0.0, 90.0),  # nan_percent
@@ -44,7 +44,7 @@ deltas_test_cases = list(itertools.product(*deltas_test_values))
 
 # possible values for explain_levels
 levels_test_values = [
-    ("lp", "lasso"),  # solver
+    ("lp", "lasso", "tree"),  # solver
     (0.0, 90.0),  # nan_percent
     (0.0, 90.0),  # size_one_percent
 ]

@@ -73,7 +73,7 @@ class ModelNode:
         self.fitter = fitter
         self.dims = dims
         self._best_submodels = None
-        self._error_improvement = None
+        self._error_improvement = float("-inf")
         self.children = None
         self.dim_split = dim_split or {}
         self.depth = depth
