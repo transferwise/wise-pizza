@@ -92,7 +92,7 @@ class LogTransform(TransformWithWeights):
                 0.0, np.exp(np.minimum(x, np.log(self.max_inverse))) - self.offset
             )
         else:
-            np.maximum(0.0, np.exp(x) - self.offset)
+            return np.maximum(0.0, np.exp(x) - self.offset)
 
     def transform_weight(self, w: np.ndarray, mean: np.ndarray) -> np.ndarray:
         # pure math would give weight_pow_sc = 1, but then

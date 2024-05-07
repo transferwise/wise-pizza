@@ -165,7 +165,6 @@ def get_best_subtree_result(
 
 
 def build_tree(root: ModelNode, num_leaves: int, max_depth: Optional[int] = 1000):
-    # TODO: modify this to also accept max_depth
     for _ in range(num_leaves - 1):
         best_node = get_best_subtree_result(root, max_depth)
         if best_node.error_improvement > 0:
