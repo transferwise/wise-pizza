@@ -195,6 +195,7 @@ class SliceFinder:
                 dims=dims,
                 time_basis=self.time_basis,
                 num_leaves=max_segments,
+                max_depth=max_depth,
             )
             self.nonzeros = np.array(range(self.X.shape[1]))
             Xw = csc_matrix(diags(self.weights) @ self.X)
