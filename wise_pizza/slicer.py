@@ -117,7 +117,7 @@ class SliceFinder:
         @param min_segments: Minimum number of segments to find
         @param max_segments: Maximum number of segments to find, defaults to min_segments
         @param min_depth: Minimum number of dimension to constrain in segment definition
-        @param max_depth: Maximum number of dimension to constrain in segment definition
+        @param max_depth: Maximum number of dimensions to constrain in segment definition; also max depth pf tree in tree solver
         @param solver: Valid values are "lasso" (default), "tree" (for non-overlapping segments), "omp", or "lp"
         @param verbose: If set to a truish value, lots of debug info is printed to console
         @param force_dim: To add dim
@@ -287,7 +287,8 @@ class SliceFinder:
             # assert wgt == wgts[i]
             s["orig_i"] = i
             s["coef"] = self.reg.coef_[i]
-            s["impact"] = np.abs(s["coef"]) * (np.abs(this_vec) * self.weights).sum()
+            # TODO: does not taking the abs of coef here break time series?
+            s["impact"] = s["coef"] * (np.abs(this_vec) * self.weights).sum()
             s["avg_impact"] = s["impact"] / sum(self.weights)
             s["total"] = (self.totals * dummy).sum()
             s["seg_size"] = wgt

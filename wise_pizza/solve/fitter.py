@@ -18,10 +18,12 @@ class Fitter(ABC):
         return self.predict(X)
 
     def error(self, X, y, sample_weight=None):
+        # Error is chosen so that it's minimized by the weighted mean of y
         err = y - self.predict(X)
+        errsq = err**2
         if sample_weight is not None:
-            err *= sample_weight
-        return np.nansum(err**2)
+            errsq *= sample_weight
+        return np.nansum(errsq)
 
 
 class AverageFitter(Fitter):
