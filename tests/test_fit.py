@@ -153,7 +153,7 @@ def test_synthetic_template(nan_percent: float, clustering: bool):
         total_name=all_data.segment_total,
         size_name=all_data.segment_size,
         max_depth=2,
-        min_segments=5,
+        max_segments=5,
         verbose=1,
         solver="lp",
         cluster_values=clustering,
@@ -227,7 +227,7 @@ def test_synthetic_ts_template(nan_percent: float):
         time_name=all_data.time_col,
         size_name=all_data.segment_size,
         max_depth=2,
-        min_segments=5,
+        max_segments=5,
         verbose=True,
     )
     print("***")
@@ -277,7 +277,7 @@ def test_deltas(
         all_data.segment_size,
         how=how,
         max_depth=1,
-        min_segments=10,
+        max_segments=10,
         solver=solver,
         cluster_values=cluster_values
     )
@@ -302,7 +302,7 @@ def test_explain_levels(solver: str, nan_percent: float, size_one_percent: float
         total_name=all_data.segment_total,
         size_name=all_data.segment_size,
         max_depth=1,
-        min_segments=10,
+        max_segments=10,
         solver=solver,
     )
     print(sf.summary())
