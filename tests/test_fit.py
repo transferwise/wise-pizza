@@ -38,6 +38,7 @@ deltas_test_values = [
     (explain_changes_in_average, explain_changes_in_totals),  # function
     (0.0, 90.0),  # nan_percent
     (0.0, 90.0),  # size_one_percent
+    (True, False),  # cluster_values
 ]
 # possible variants for explain methods
 deltas_test_cases = list(itertools.product(*deltas_test_values))
@@ -152,7 +153,7 @@ def test_synthetic_template(nan_percent: float, clustering: bool):
         total_name=all_data.segment_total,
         size_name=all_data.segment_size,
         max_depth=2,
-        min_segments=5,
+        max_segments=5,
         verbose=1,
         solver="lp",
         cluster_values=clustering,
@@ -226,7 +227,7 @@ def test_synthetic_ts_template(nan_percent: float):
         time_name=all_data.time_col,
         size_name=all_data.segment_size,
         max_depth=2,
-        min_segments=5,
+        max_segments=5,
         verbose=True,
     )
     print("***")
@@ -243,7 +244,7 @@ def test_synthetic_ts_template(nan_percent: float):
 
 
 @pytest.mark.parametrize(
-    "how, solver, plot_is_static, function, nan_percent, size_one_percent",
+    "how, solver, plot_is_static, function, nan_percent, size_one_percent, cluster_values",
     deltas_test_cases,
 )
 def test_deltas(
@@ -253,6 +254,7 @@ def test_deltas(
     function: Callable,
     nan_percent: float,
     size_one_percent: float,
+    cluster_values: bool,
 ):
     all_data = monthly_driver_data()
     df = all_data.data
@@ -275,8 +277,9 @@ def test_deltas(
         all_data.segment_size,
         how=how,
         max_depth=1,
-        min_segments=10,
+        max_segments=10,
         solver=solver,
+        cluster_values=cluster_values
     )
     # sf.plot(plot_is_static=plot_is_static)
     print("yay!")
@@ -299,7 +302,7 @@ def test_explain_levels(solver: str, nan_percent: float, size_one_percent: float
         total_name=all_data.segment_total,
         size_name=all_data.segment_size,
         max_depth=1,
-        min_segments=10,
+        max_segments=10,
         solver=solver,
     )
     print(sf.summary())

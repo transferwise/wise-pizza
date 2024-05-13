@@ -16,7 +16,6 @@ def plot_split_segments(
     plot_is_static: bool = False,
     width: int = 2000,
     height: int = 500,
-    cluster_values: bool = False,
     cluster_key_width: int = 180,
     cluster_value_width: int = 318,
     return_fig: bool = False,
@@ -113,7 +112,7 @@ def plot_split_segments(
     for i in range(1, 3):
         fig.update_yaxes(autorange="reversed", row=i)
 
-    if cluster_values:
+    if sf_size.relevant_cluster_names:
         data_dict = sf_size.relevant_cluster_names
         keys = list(data_dict.keys())
         values = list(data_dict.values())
@@ -139,7 +138,7 @@ def plot_split_segments(
         # Convert the figure to a static image
         image_bytes = to_image(fig, format="png", scale=2)
 
-        if cluster_values:
+        if sf_size.relevant_cluster_names:
             display(
                 Image(
                     image_bytes,
@@ -158,12 +157,12 @@ def plot_split_segments(
             )
     else:
         if return_fig:
-            if cluster_values:
+            if sf_size.relevant_cluster_names:
                 return [fig, fig2]
             else:
                 return fig
         fig.show()
-        if cluster_values:
+        if sf_size.relevant_cluster_names:
             fig2.show()
 
 
@@ -173,7 +172,6 @@ def plot_segments(
     width: int = 2000,
     height: int = 500,
     return_fig: bool = False,
-    cluster_values: bool = False,
     cluster_key_width: int = 180,
     cluster_value_width: int = 318,
 ):
@@ -244,7 +242,7 @@ def plot_segments(
         annotation_text="Global average",
     )
 
-    if cluster_values:
+    if sf.relevant_cluster_names:
         data_dict = sf.relevant_cluster_names
         keys = list(data_dict.keys())
         values = list(data_dict.values())
@@ -271,7 +269,7 @@ def plot_segments(
         image_bytes = to_image(fig, format="png", scale=2)
 
         # Display the static image in the Jupyter notebook
-        if cluster_values:
+        if sf.relevant_cluster_names:
             image_bytes2 = to_image(fig2, format="png", scale=2)
             display(
                 Image(
@@ -289,13 +287,13 @@ def plot_segments(
             )
     else:
         if return_fig:
-            if cluster_values:
+            if sf.relevant_cluster_names:
                 return [fig, fig2]
             else:
                 return fig
         else:
             fig.show()
-            if cluster_values:
+            if sf.relevant_cluster_names:
                 fig2.show()
 
 
@@ -360,7 +358,6 @@ def plot_waterfall(
     plot_is_static: bool = False,
     width: int = 1000,
     height: int = 1000,
-    cluster_values: bool = False,
     cluster_key_width: int = 180,
     cluster_value_width: int = 318,
     return_fig: bool = False,
@@ -387,7 +384,7 @@ def plot_waterfall(
         **waterfall_layout_args(sf, width, height),
     )
 
-    if cluster_values:
+    if sf.relevant_cluster_names:
         data_dict = sf.relevant_cluster_names
         keys = list(data_dict.keys())
         values = list(data_dict.values())
@@ -412,7 +409,7 @@ def plot_waterfall(
     if plot_is_static:
         # Convert the figure to a static image
         image_bytes = to_image(fig, format="png", scale=2)
-        if cluster_values:
+        if sf.relevant_cluster_names:
             display(Image(image_bytes, height=height, width=width))
             fig2.show()
         else:
@@ -420,10 +417,10 @@ def plot_waterfall(
             display(Image(image_bytes, width=width, height=height))
     else:
         if return_fig:
-            if cluster_values:
+            if sf.relevant_cluster_names:
                 return [fig, fig2]
             else:
                 return fig
         fig.show()
-        if cluster_values:
+        if sf.relevant_cluster_names:
             fig2.show()
