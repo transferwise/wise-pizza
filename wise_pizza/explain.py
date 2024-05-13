@@ -224,7 +224,6 @@ def explain_changes_in_totals(
             plot_is_static=plot_is_static,
             width=width,
             height=height,
-            cluster_values=cluster_values,
             cluster_key_width=cluster_key_width,
             cluster_value_width=cluster_value_width,
             return_fig=return_fig,
@@ -258,7 +257,6 @@ def explain_changes_in_totals(
             plot_is_static=plot_is_static,
             width=width,
             height=height,
-            cluster_values=cluster_values,
             cluster_key_width=cluster_key_width,
             cluster_value_width=cluster_value_width,
             return_fig=return_fig,
@@ -341,7 +339,6 @@ def explain_levels(
         width=width,
         height=height,
         return_fig=return_fig,
-        cluster_values=cluster_values,
         cluster_key_width=cluster_key_width,
         cluster_value_width=cluster_value_width,
     )
