@@ -69,7 +69,7 @@ class ModelNode:
         dim_split: Optional[Dict[str, List]] = None,
         depth: int = 0,
     ):
-        self.df = df
+        self.df = df.copy()
         self.fitter = fitter
         self.dims = dims
         self._best_submodels = None
@@ -85,7 +85,7 @@ class ModelNode:
             self.model = copy.deepcopy(self.fitter)
             self.model.fit(
                 X=self.df[self.dims],
-                y=self.df["totals"],
+                y=self.df["__avg"],
                 sample_weight=self.df["weights"],
             )
         return self.model.error(
