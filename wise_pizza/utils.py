@@ -303,7 +303,7 @@ def almost_equals(x1, x2, eps: float = 1e-6) -> bool:
 
 def clean_up_min_max(min_nonzeros: int = None, max_nonzeros: int = None):
     if min_nonzeros is not None:
-        logging.info(
+        logging.warning(
             "min_segments parameter is deprecated, please use max_nonzeros instead."
         )
     if max_nonzeros is None:
