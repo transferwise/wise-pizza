@@ -48,7 +48,9 @@ def explain_changes_in_average(
     @param max_segments: Maximum number of segments to find, defaults to min_segments
     @param min_depth: Minimum number of dimension to constrain in segment definition
     @param max_depth: Maximum number of dimension to constrain in segment definition
-    @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
+    @param solver: "lasso" for most unusual, possibly overlapping segments;
+                   "tree" to divide the whole dataset into non-overlapping segments,
+                          as homogenous as possible.
     @param how: "totals" to only decompose segment totals (ignoring size vs average contribution)
             "split_fits" to separately decompose contribution of size changes and average changes
             "extra_dim" to treat size vs average change contribution as an additional dimension
@@ -145,7 +147,9 @@ def explain_changes_in_totals(
     @param max_segments: Maximum number of segments to find, defaults to min_segments
     @param min_depth: Minimum number of dimension to constrain in segment definition
     @param max_depth: Maximum number of dimension to constrain in segment definition
-    @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
+    @param solver: "lasso" for most unusual, possibly overlapping segments;
+                   "tree" to divide the whole dataset into non-overlapping segments,
+                          as homogenous as possible.
     @param how: "totals" to only decompose segment totals (ignoring size vs average contribution)
             "split_fits" to separately decompose contribution of size changes and average changes
             "extra_dim" to treat size vs average change contribution as an additional dimension
@@ -290,6 +294,9 @@ def explain_levels(
     @param max_segments: Maximum number of segments to find, defaults to min_segments
     @param min_depth: Minimum number of dimension to constrain in segment definition
     @param max_depth: Maximum number of dimension to constrain in segment definition
+    @param solver: "lasso" for most unusual, possibly overlapping segments;
+                   "tree" to divide the whole dataset into non-overlapping segments,
+                          as homogenous as possible.
     @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
     @param verbose: If set to a truish value, lots of debug info is printed to console
     @param force_add_up: Force the contributions of chosen segments to add up to zero
