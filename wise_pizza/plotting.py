@@ -139,6 +139,7 @@ def plot_split_segments(
         image_bytes = to_image(fig, format="png", scale=2)
 
         if sf_size.relevant_cluster_names:
+            image_bytes2 = to_image(fig2, format="png", scale=2)
             display(
                 Image(
                     image_bytes,
@@ -146,7 +147,13 @@ def plot_split_segments(
                     width=width + len(size_data.index) * 30,
                 )
             )
-            fig2.show()
+            display(
+                Image(
+                    image_bytes2,
+                    height=height + len(size_data.index) * 30,
+                    width=width + len(size_data.index) * 30,
+                )
+            )
 
         else:
             # Display the static image in the Jupyter notebook
@@ -410,8 +417,9 @@ def plot_waterfall(
         # Convert the figure to a static image
         image_bytes = to_image(fig, format="png", scale=2)
         if sf.relevant_cluster_names:
+            image_bytes2 = to_image(fig2, format="png", scale=2)
             display(Image(image_bytes, height=height, width=width))
-            fig2.show()
+            display(Image(image_bytes2, height=height, width=width))
         else:
             # Display the static image in the Jupyter notebook
             display(Image(image_bytes, width=width, height=height))
