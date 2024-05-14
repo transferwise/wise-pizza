@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 
 import numpy as np
@@ -120,7 +121,9 @@ def diff_dataset(
 
         if return_multiple:
             sd_size = SegmentData(
-                combined.rename(columns={"Change in totals": "Change from segment size"}),
+                combined.rename(
+                    columns={"Change in totals": "Change from segment size"}
+                ),
                 dimensions=dims,
                 segment_total="Change from segment size",
                 segment_size=weights,
@@ -137,7 +140,9 @@ def diff_dataset(
             combined["Change from"] = "Segment size"
             c2["Change from"] = "Segment average"
 
-            df = pd.concat([combined, c2])[dims + [weights, "Change in totals", "Change from"]]
+            df = pd.concat([combined, c2])[
+                dims + [weights, "Change in totals", "Change from"]
+            ]
             df_change_in_totals = np.array(df["Change in totals"], dtype=np.longdouble)
             combined_dtotals = np.array(combined["dtotals"], dtype=np.longdouble)
             df_change_in_totals_sum = np.nansum(df_change_in_totals)
@@ -160,7 +165,9 @@ def diff_dataset(
         combined[weights] = 1.0  # combined[totals + "_x"]
         combined[weights] = np.maximum(1.0, combined[weights])
         cols = (
-            dims + ["Change in totals", totals + "_x", totals + "_y"] + [c for c in combined.columns if "baseline" in c]
+            dims
+            + ["Change in totals", totals + "_x", totals + "_y"]
+            + [c for c in combined.columns if "baseline" in c]
         )
 
         return SegmentData(
@@ -205,16 +212,26 @@ def prepare_df(
 
     # replace NaN values in categorical columns with the column name + "_unknown"
     object_columns = list(new_df[dims].select_dtypes("object").columns)
-    new_df[object_columns] = new_df[object_columns].fillna(new_df[object_columns].apply(lambda x: x.name + "_unknown"))
+    new_df[object_columns] = new_df[object_columns].fillna(
+        new_df[object_columns].apply(lambda x: x.name + "_unknown")
+    )
     new_df[object_columns] = new_df[object_columns].astype(str)
 
     # Groupby all relevant dims to decrease the dataframe size, if possible
     group_dims = dims if time_name is None else dims + [time_name]
 
     if size_name is not None:
-        new_df = new_df.groupby(by=group_dims, observed=True)[[total_name, size_name]].sum().reset_index()
+        new_df = (
+            new_df.groupby(by=group_dims, observed=True)[[total_name, size_name]]
+            .sum()
+            .reset_index()
+        )
     else:
-        new_df = new_df.groupby(by=group_dims, observed=True)[[total_name]].sum().reset_index()
+        new_df = (
+            new_df.groupby(by=group_dims, observed=True)[[total_name]]
+            .sum()
+            .reset_index()
+        )
 
     return new_df
 
@@ -280,5 +297,24 @@ def prepare_df(
 #     new_df[object_columns] = new_df[object_columns].astype(str)
 #
 #     return new_df
-def almost_equals(x1, x2, eps: float=1e-6) -> bool:
-    return np.sum(np.abs(x1-x2))/np.mean(np.abs(x1+x2)) < eps
+def almost_equals(x1, x2, eps: float = 1e-6) -> bool:
+    return np.sum(np.abs(x1 - x2)) / np.mean(np.abs(x1 + x2)) < eps
+
+
+def clean_up_min_max(min_nonzeros: int = None, max_nonzeros: int = None):
+    if min_nonzeros is not None:
+        logging.info(
+            "min_segments parameter is deprecated, please use max_nonzeros instead."
+        )
+    if max_nonzeros is None:
+        if min_nonzeros is None:
+            max_nonzeros = 5
+            min_nonzeros = 5
+        else:
+            max_nonzeros = min_nonzeros
+    else:
+        if min_nonzeros is None:
+            min_nonzeros = max_nonzeros
+
+    assert min_nonzeros <= max_nonzeros
+    return min_nonzeros, max_nonzeros

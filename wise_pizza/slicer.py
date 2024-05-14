@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix, diags
 
-from wise_pizza.solve.find_alpha import clean_up_min_max, find_alpha
+from wise_pizza.solve.find_alpha import find_alpha
+from wise_pizza.utils import clean_up_min_max
 from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import make_clusters
 from wise_pizza.preselect import HeuristicSelector
@@ -98,7 +99,7 @@ class SliceFinder:
         weights: pd.Series = None,
         time_col: pd.Series = None,
         time_basis: pd.DataFrame = None,
-        min_segments: int = 10,
+        min_segments: int = None,
         max_segments: int = None,
         min_depth: int = 1,
         max_depth: int = 3,
