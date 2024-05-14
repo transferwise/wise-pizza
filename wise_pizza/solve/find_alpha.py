@@ -4,6 +4,7 @@ from scipy.sparse import vstack, csr_array, issparse
 from scipy.linalg import svd
 
 from wise_pizza.solve.solver import solve_lasso, solve_lp, solve_omp
+from wise_pizza.utils import clean_up_min_max
 
 
 def find_alpha(
@@ -219,19 +220,3 @@ def find_alpha(
         # fit_intercept=not use_proj
     )
     return reg, nonzeros
-
-
-def clean_up_min_max(min_nonzeros: int = None, max_nonzeros: int = None):
-    assert min_nonzeros is not None or max_nonzeros is not None
-    if max_nonzeros is None:
-        if min_nonzeros is None:
-            max_nonzeros = 5
-            min_nonzeros = 5
-        else:
-            max_nonzeros = min_nonzeros
-    else:
-        if min_nonzeros is None:
-            min_nonzeros = max_nonzeros
-
-    assert min_nonzeros <= max_nonzeros
-    return min_nonzeros, max_nonzeros
