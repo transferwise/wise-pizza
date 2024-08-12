@@ -9,5 +9,5 @@ scipy>=1.8.0
 tqdm
 cloudpickle
 pivottablejs
-streamlit==1.32.0
+streamlit==1.37.0
 nbformat>=4.2.0
