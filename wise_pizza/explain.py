@@ -575,6 +575,7 @@ def _explain_timeseries(
 
         # print("yay!")
 
+    # TODO: do we need this normalization at all?
     df, avg_df = add_average_over_time(
         df,
         dims=dims,

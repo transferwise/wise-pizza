@@ -17,6 +17,7 @@ from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
 from wise_pizza.solve.tree import tree_solver
 from wise_pizza.solve.solver import solve_lasso
+from wise_pizza.solve.fitter import TimeFitterLinearModel
 
 
 def _summary(obj) -> str:
@@ -191,23 +192,37 @@ class SliceFinder:
                 warnings.warn(
                     "Ignoring cluster_values argument as tree solver makes its own clusters"
                 )
-            self.X, self.col_defs, self.cluster_names = tree_solver(
-                dim_df=dim_df,
-                dims=dims,
-                time_basis=self.time_basis,
-                num_leaves=max_segments,
-                max_depth=max_depth,
-            )
-            self.nonzeros = np.array(range(self.X.shape[1]))
-            Xw = csc_matrix(diags(self.weights) @ self.X)
-            self.reg = solve_lasso(
-                Xw.toarray(),
-                self.totals,
-                alpha=1e-5,
-                verbose=self.verbose,
-                fit_intercept=False,
-            )
-            print("")
+            if time_basis is None:
+                self.X, self.col_defs, self.cluster_names, _ = tree_solver(
+                    dim_df=dim_df,
+                    dims=dims,
+                    num_leaves=max_segments,
+                    max_depth=max_depth,
+                )
+                self.nonzeros = np.array(range(self.X.shape[1]))
+                Xw = csc_matrix(diags(self.weights) @ self.X)
+                self.reg = solve_lasso(
+                    Xw.toarray(),
+                    self.totals,
+                    alpha=1e-5,
+                    verbose=self.verbose,
+                    fit_intercept=False,
+                )
+                print("")
+            else:
+                time_fitter = TimeFitterLinearModel(
+                    basis=time_basis,
+                    time_col="__time",
+                )
+
+                self.X, self.col_defs, self.cluster_names, avg_prediction = tree_solver(
+                    dim_df=dim_df,
+                    dims=dims,
+                    time_fitter=time_fitter,
+                    num_leaves=max_segments,
+                    max_depth=max_depth,
+                )
+
         else:
             if cluster_values:
                 self.cluster_names = make_clusters(dim_df, dims)

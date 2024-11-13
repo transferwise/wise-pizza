@@ -6,28 +6,42 @@ import pandas as pd
 from scipy.sparse import csc_matrix
 
 from .weighted_quantiles import weighted_quantiles
-from .fitter import AverageFitter, Fitter
+from .fitter import AverageFitter, Fitter, TimeFitterModel, TimeFitter
 from wise_pizza.cluster import nice_cluster_names
 
 
 def tree_solver(
     dim_df: pd.DataFrame,
     dims: List[str],
-    time_basis: Optional[pd.DataFrame] = None,
+    time_fitter: TimeFitterModel | None = None,
     max_depth: Optional[int] = None,
     num_leaves: Optional[int] = None,
 ):
-    if time_basis is None:
+    """
+    Partition the data into segments using a greedy binary tree approach
+    :param dim_df: DataFrame with dimensions, totals, and similar data, sorted by time and dims
+    :param dims: List of dimensions the dataset is segmented by
+    :param time_fitter: A time series model to fit
+    :param max_depth: max depth of the tree
+    :param num_leaves: num leaves to generate
+    :return: Segment description, column definitions, and cluster names
+    """
+    if time_fitter is None:
         fitter = AverageFitter()
     else:
-        raise NotImplementedError("Time fitter not yet implemented")
-        # fitter = TimeFitter(dims, list(time_basis.columns))
+        fitter = TimeFitter(dims=dims, time_col="__time", time_fitter_model=time_fitter)
 
     df = dim_df.copy().reset_index(drop=True)
     df["__avg"] = df["totals"] / df["weights"]
     df["__avg"] = df["__avg"].fillna(df["__avg"].mean())
 
-    root = ModelNode(df=df, fitter=fitter, dims=dims, max_depth=max_depth)
+    root = ModelNode(
+        df=df,
+        fitter=fitter,
+        dims=dims,
+        time_col=None if time_fitter is None else "__time",
+        max_depth=max_depth,
+    )
 
     build_tree(root=root, num_leaves=num_leaves, max_depth=max_depth)
 
@@ -38,10 +52,12 @@ def tree_solver(
     for l, leaf in enumerate(leaves):
         leaf.df["Segment_id"] = l
 
-    re_df = pd.concat([leaf.df for leaf in leaves]).sort_values(dims)
+    re_df = pd.concat([leaf.df for leaf in leaves]).sort_values(
+        dims if time_fitter is None else ["__time"] + dims
+    )
     X = pd.get_dummies(re_df["Segment_id"]).values
 
-    return csc_matrix(X), col_defs, cluster_names
+    return csc_matrix(X), col_defs, cluster_names, re_df["prediction"].values
 
 
 def error(x: np.ndarray, y: np.ndarray) -> float:
@@ -66,12 +82,14 @@ class ModelNode:
         df: pd.DataFrame,
         fitter: Fitter,
         dims: List[str],
+        time_col: str = None,
         max_depth: Optional[int] = None,
         dim_split: Optional[Dict[str, List]] = None,
     ):
-        self.df = df.copy()
+        self.df = df.copy().sort_values([time_col] + dims)
         self.fitter = fitter
         self.dims = dims
+        self.time_col = time_col
         self.max_depth = max_depth
         self._best_submodels = None
         self._error_improvement = float("-inf")
@@ -87,15 +105,19 @@ class ModelNode:
 
     @property
     def error(self):
+        this_X = self.df[self.dims + ([] if self.time_col is None else [self.time_col])]
         if self.model is None:
             self.model = copy.deepcopy(self.fitter)
             self.model.fit(
-                X=self.df[self.dims],
+                X=this_X,
                 y=self.df["__avg"],
                 sample_weight=self.df["weights"],
             )
+        self.df["prediction"] = self.model.predict(this_X)
         return self.model.error(
-            self.df[self.dims], self.df["__avg"], self.df["weights"]
+            X=this_X,
+            y=self.df["__avg"],
+            sample_weight=self.df["weights"],
         )
 
     @property
@@ -137,6 +159,7 @@ class ModelNode:
                         df=left,
                         fitter=self.fitter,
                         dims=self.dims,
+                        time_col=self.time_col,
                         dim_split={**self.dim_split, **{dim: dim_values1}},
                         max_depth=self.max_depth,
                     )
@@ -144,6 +167,7 @@ class ModelNode:
                         df=right,
                         fitter=self.fitter,
                         dims=self.dims,
+                        time_col=self.time_col,
                         dim_split={**self.dim_split, **{dim: dim_values2}},
                         max_depth=self.max_depth,
                     )
