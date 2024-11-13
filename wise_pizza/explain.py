@@ -4,6 +4,7 @@ from typing import List, Optional
 
 import numpy as np
 import pandas as pd
+from numpy.ma.extras import average
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -13,6 +14,7 @@ from wise_pizza.plotting import (
     plot_waterfall,
 )
 from wise_pizza.plotting_time import plot_time, plot_ts_pair
+from wise_pizza.plotting_time_tree import plot_time_from_tree
 from wise_pizza.slicer import SliceFinder, SlicerPair
 from wise_pizza.slicer_facades import TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df, almost_equals
@@ -427,7 +429,7 @@ def explain_timeseries(
             cluster_values=cluster_values,
             time_basis=time_basis,
         )
-        return TransformedSliceFinder(sf_totals, transformer=tf)
+        return sf_totals  # TransformedSliceFinder(sf_totals, transformer=tf)
 
     this_w = np.ones_like(df2[size_name_orig].values)
     these_totals = df2[size_name_orig].values
@@ -574,22 +576,28 @@ def _explain_timeseries(
             pre_basis[c + "_a"] = pre_basis["Slope"] - pre_basis[c]
 
         # print("yay!")
+    pre_normalize = False
+    if pre_normalize:
+        # TODO: do we need this normalization at all?
+        df, avg_df = add_average_over_time(
+            df,
+            dims=dims,
+            total_name=total_name,
+            size_name=size_name,
+            time_name=time_name,
+            cartesian=False,
+        )
+        # The join in the above function could have messed up the ordering
+        df = df.sort_values(by=dims + [time_name])
 
-    # TODO: do we need this normalization at all?
-    df, avg_df = add_average_over_time(
-        df,
-        dims=dims,
-        total_name=total_name,
-        size_name=size_name,
-        time_name=time_name,
-        cartesian=False,
-    )
-    # The join in the above function could have messed up the ordering
-    df = df.sort_values(by=dims + [time_name])
-
-    # This block is pointless as we just normalized each sub-segment to zero average across time
-    average = df[total_name].sum() / df[size_name].sum()
-    df["_target"] = df[total_name] - df["total_adjustment"]
+        # This block is pointless as we just normalized each sub-segment to zero average across time
+        average = df[total_name].sum() / df[size_name].sum()
+        df["_target"] = df[total_name] - df["total_adjustment"]
+    else:
+        df["_target"] = df[total_name]
+        df["total_adjustment"] = 0.0
+        avg_df = 0.0
+        average = 0.0
 
     sf = SliceFinder()
     sf.global_average = average
@@ -619,7 +627,6 @@ def _explain_timeseries(
     # TODO: insert back the normalized bits?
     for s in sf.segments:
         segment_def = s["segment"]
-        assert "time" in segment_def, "Each segment should have a time profile!"
         this_vec = (
             sf.X[:, s["index"]]
             .toarray()
@@ -627,18 +634,11 @@ def _explain_timeseries(
                 -1,
             )
         )
-        time_mult = (
-            sf.time_basis[segment_def["time"]]
-            .toarray()
-            .reshape(
-                -1,
-            )
-        )
-        dummy = (this_vec / time_mult).astype(int).astype(np.float64)
-        s["dummy"] = dummy
-        s["seg_total_vec"] = this_vec * s["coef"] * sf.weights
+        if "coef" in s:
+            s["seg_total_vec"] = this_vec * s["coef"] * sf.weights
+
         if len(segment_def) > 1:
-            elems = np.unique(dummy)
+            elems = np.unique(s["dummy"].astype(float))
             assert len(elems) == 2
             assert 1.0 in elems
             assert 0.0 in elems
@@ -647,7 +647,12 @@ def _explain_timeseries(
         s["total"] += average * s["seg_size"]
     # print(average)
     # sf.reg.intercept_ += average
-    sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False, average_name=None: plot_time(
+    if solver == "tree":
+        plot_fun = plot_time_from_tree
+    else:
+        plot_fun = plot_time
+
+    sf.plot = lambda plot_is_static=False, width=1200, height=2000, return_fig=False, average_name=None: plot_fun(
         sf,
         plot_is_static=plot_is_static,
         width=width,

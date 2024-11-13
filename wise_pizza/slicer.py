@@ -187,6 +187,7 @@ class SliceFinder:
         clusters = defaultdict(list)
         self.cluster_names = {}
 
+        avg_prediction = None
         if solver == "tree":
             if cluster_values:
                 warnings.warn(
@@ -199,7 +200,7 @@ class SliceFinder:
                     num_leaves=max_segments,
                     max_depth=max_depth,
                 )
-                self.nonzeros = np.array(range(self.X.shape[1]))
+
                 Xw = csc_matrix(diags(self.weights) @ self.X)
                 self.reg = solve_lasso(
                     Xw.toarray(),
@@ -209,6 +210,7 @@ class SliceFinder:
                     fit_intercept=False,
                 )
                 print("")
+
             else:
                 time_fitter = TimeFitterLinearModel(
                     basis=time_basis,
@@ -222,6 +224,7 @@ class SliceFinder:
                     num_leaves=max_segments,
                     max_depth=max_depth,
                 )
+            self.nonzeros = np.array(range(self.X.shape[1]))
 
         else:
             if cluster_values:
@@ -275,7 +278,7 @@ class SliceFinder:
             {"segment": self.col_defs[i], "index": int(i)} for i in self.nonzeros
         ]
 
-        wgts = np.array((np.abs(Xw[:, self.nonzeros]) > 0).sum(axis=0))[0]
+        # wgts = np.array((np.abs(Xw[:, self.nonzeros]) > 0).sum(axis=0))[0]
 
         for i, s in enumerate(self.segments):
             segment_def = s["segment"]
@@ -286,7 +289,7 @@ class SliceFinder:
                     -1,
                 )
             )
-            if "time" in segment_def:
+            if "time" in segment_def and solver != "tree":
                 # Divide out the time profile mult - we've made sure it's always nonzero
                 time_mult = (
                     self.time_basis[segment_def["time"]]
@@ -297,21 +300,40 @@ class SliceFinder:
                 )
                 dummy = (this_vec / time_mult).astype(int).astype(np.float64)
             else:
-                dummy = this_vec
+                dummy = this_vec.astype(int)
+
+            if avg_prediction is not None:
+                s["prediction"] = np.zeros(dummy.shape, dtype=np.float64)
+                s["prediction"][dummy == 1] = avg_prediction[dummy == 1]
 
             this_wgts = self.weights * dummy
             wgt = this_wgts.sum()
             # assert wgt == wgts[i]
             s["orig_i"] = i
-            s["coef"] = self.reg.coef_[i]
-            # TODO: does not taking the abs of coef here break time series?
-            s["impact"] = s["coef"] * (np.abs(this_vec) * self.weights).sum()
-            s["avg_impact"] = s["impact"] / sum(self.weights)
             s["total"] = (self.totals * dummy).sum()
             s["seg_size"] = wgt
             s["naive_avg"] = s["total"] / wgt
+            s["dummy"] = dummy
 
-        if time_basis is not None:  # it's a time series product
+        if hasattr(self.reg, "coef_"):
+            for i, s in enumerate(self.segments):
+                this_vec = (
+                    self.X[:, s["index"]]
+                    .toarray()
+                    .reshape(
+                        -1,
+                    )
+                )
+                s["coef"] = self.reg.coef_[i]
+                # TODO: does not taking the abs of coef here break time series?
+                s["impact"] = s["coef"] * (np.abs(this_vec) * self.weights).sum()
+                s["avg_impact"] = s["impact"] / sum(self.weights)
+
+            self.segments = self.order_segments(self.segments)
+
+        if (
+            time_basis is not None and self.reg is not None
+        ):  # it's a time series not fitted with tree
             # Do we need this bit at all?
             predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(
                 -1,
@@ -326,8 +348,6 @@ class SliceFinder:
 
             # self.enrich_segments_with_timeless_reg(self.segments, self.y_adj)
 
-        self.segments = self.order_segments(self.segments)
-
         # In some cases (mostly in a/b exps we have a situation where there is no any diff in totals/sizes)
         if len(self.segments) == 0:
             self.segments.append(
@@ -341,11 +361,6 @@ class SliceFinder:
                     "naive_avg": 0,
                 }
             )
-
-    # def enrich_segments_with_timeless_reg(self, segments, y):
-    #     pre_X = [s["dummy"] for s in segments]
-    #     X = np.concatenate()
-    #     pass
 
     @staticmethod
     def order_segments(segments: List[Dict[str, any]]):
