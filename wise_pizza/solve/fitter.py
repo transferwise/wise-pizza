@@ -26,7 +26,11 @@ class Fitter(ABC):
     def error(self, X, y, sample_weight=None):
         # Error is chosen so that it's minimized by the weighted mean of y
         # debug_plot(X, y, self.predict(X), sample_weight)
-        err = y - self.predict(X)
+        X = X.copy()
+        X["target"] = y
+        if hasattr(self, "dims"):
+            X = X.sort_values(self.dims + self.groupby_dims)
+        err = X["target"] - self.predict(X)
         errsq = err**2
         if sample_weight is not None:
             errsq *= sample_weight
@@ -64,6 +68,7 @@ class TimeFitterModel(ABC):
 class AverageFitter(Fitter):
     def __init__(self):
         self.avg = None
+        self.groupby_dims = []
 
     def fit(self, X, y, sample_weight=None):
         y = np.array(y)
@@ -109,7 +114,7 @@ class TimeFitter(Fitter):
 
     def predict(self, X):
         # predict straight away on the big table, it's row-wise anyway
-        return self.time_fitter.predict(X[self.groupby_dims + self.dims])
+        return self.time_fitter.predict(X[self.dims + self.groupby_dims])
 
 
 class TimeFitterLinearModel(TimeFitterModel):
@@ -137,13 +142,16 @@ class TimeFitterLinearModel(TimeFitterModel):
             self.basis,
             on=self.groupby_dims,
         )
+        this_X = this_basis[self.basis_cols]
+        w = this_basis["weights"].values
+        w = w / w.max()
         self.reg = LinearRegression().fit(
-            X=this_basis[self.basis_cols],
-            y=this_basis["target"],
-            sample_weight=None if sample_weight is None else this_basis["weights"],
+            X=this_X,
+            y=this_basis["target"].values,
+            sample_weight=None if sample_weight is None else w,
         )
         ## testing code begins
-        # self.prediction = self.reg.predict(this_basis[self.basis_cols])
+        # self.prediction = self.reg.predict(this_X)
         # test = pd.DataFrame(
         #     {
         #         "time": this_basis[self.time_col],
@@ -151,7 +159,14 @@ class TimeFitterLinearModel(TimeFitterModel):
         #         "prediction": self.prediction,
         #     }
         # )
+        # import matplotlib.pyplot as plt
+        #
+        # plt.plot(test["target"], label="target")
+        # plt.plot(test["prediction"], label="prediction")
+        # plt.legend()
+        # plt.show()
         # print("yay!")
+
         ## testing code ends
 
     def predict(self, X: pd.DataFrame):

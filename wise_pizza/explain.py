@@ -441,7 +441,7 @@ def explain_timeseries(
 
         # Block-matrix basis with itself
         re_basis = time_basis.copy().rename(
-            {c: c + "_w" for c in time_basis.columns}, axis=1
+            {c: c + "_w" for c in time_basis.columns if c != "__time"}, axis=1
         )
         time_basis["chunk"] = "Average"
         re_basis["chunk"] = "Weights"
@@ -455,6 +455,7 @@ def explain_timeseries(
         groupby_dims = ["__time"]
 
     df2["_target"] = df2[total_name]
+    df2["__time"] = df2[time_name]
     df2["total_adjustment"] = 0.0
     avg_df = 0.0
     average = 0.0
@@ -468,7 +469,7 @@ def explain_timeseries(
     sf.avg_df = avg_df
     sf.time_values = df2[time_name].unique()
     sf.fit(
-        df2[dims],
+        df2[dims + groupby_dims],
         df2["_target"],
         time_col=df2[time_name],
         time_basis=time_basis,

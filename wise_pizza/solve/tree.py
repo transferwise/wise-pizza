@@ -50,11 +50,25 @@ def tree_solver(
 
     # The convention in the calling code is first dims then time
     re_df = pd.concat([leaf.df for leaf in leaves]).sort_values(
-        dims if isinstance(fitter, AverageFitter) else dims + fitter.groupby_dims
+        dims + fitter.groupby_dims
     )
+
+    if len(fitter.groupby_dims) == 2:  # Time series with weights
+        re_df_w = re_df[re_df["chunk"] == "Weights"].copy()
+        re_df = re_df[re_df["chunk"] == "Average"]
+        w_total_prediction = (re_df_w["prediction"] * re_df_w["weights"]).values
+    else:
+        w_total_prediction = None
+
     X = pd.get_dummies(re_df["Segment_id"]).values
 
-    return csc_matrix(X), col_defs, cluster_names, re_df["prediction"].values
+    return (
+        csc_matrix(X),
+        col_defs,
+        cluster_names,
+        re_df["prediction"].values,
+        w_total_prediction,
+    )
 
 
 def error(x: np.ndarray, y: np.ndarray) -> float:
@@ -83,7 +97,7 @@ class ModelNode:
         max_depth: Optional[int] = None,
         dim_split: Optional[Dict[str, List]] = None,
     ):
-        self.df = df.copy().sort_values([time_col] + dims)
+        self.df = df.copy().sort_values(dims + fitter.groupby_dims)
         self.fitter = fitter
         self.dims = dims
         self.time_col = time_col
@@ -102,7 +116,7 @@ class ModelNode:
 
     @property
     def error(self):
-        this_X = self.df[self.dims + ([] if self.time_col is None else [self.time_col])]
+        this_X = self.df[self.dims + self.fitter.groupby_dims]
         if self.model is None:
             self.model = copy.deepcopy(self.fitter)
             self.model.fit(

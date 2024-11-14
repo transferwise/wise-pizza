@@ -72,10 +72,10 @@ def plot_time_from_tree(
 def preprocess_for_ts_plot(
     sf: SliceFinderPlottingInterface,
     average_name: str,
-    weight_sf: SliceFinderPlottingInterface | None = None,
 ) -> List[List[PlotData]]:
     out = []
     for row, s in enumerate(sf.segments):
+        print(row, s)
         this_df = pd.DataFrame(
             {
                 "time": sf.time,
@@ -84,18 +84,39 @@ def preprocess_for_ts_plot(
                 "pred_totals": sf.avg_prediction * sf.weights * s["dummy"],
             }
         )
+        if sf.weight_total_prediction is not None:
+            this_df["w_pred_totals"] = sf.weight_total_prediction * s["dummy"]
+
         time_df = this_df.groupby("time", as_index=False).sum()
+
         data1 = PlotData(
             regression=time_df["pred_totals"] / time_df["weights"],
             bars=time_df["totals"] / time_df["weights"],
             subtitle=f"{average_name} for <br> {s['segment']}",
         )
-        data2 = PlotData(
-            regression=time_df["pred_totals"],
-            bars=time_df["totals"],
-            subtitle=f"{sf.total_name} for <br> {s['segment']}",
-        )
-        out.append([data1, data2])
+
+        if sf.weight_total_prediction is None:
+            data2 = PlotData(
+                regression=time_df["pred_totals"],
+                bars=time_df["totals"],
+                subtitle=f"{sf.total_name} for <br> {s['segment']}",
+            )
+            out.append([data1, data2])
+        else:
+            data2 = PlotData(
+                # Use predictions for both avg and weights if available
+                regression=time_df["w_pred_totals"]
+                * time_df["pred_totals"]
+                / time_df["weights"],
+                bars=time_df["totals"],
+                subtitle=f"{sf.total_name} for <br> {s['segment']}",
+            )
+            data3 = PlotData(
+                regression=time_df["w_pred_totals"],
+                bars=time_df["weights"],
+                subtitle=f"{sf.size_name} for <br> {s['segment']}",
+            )
+            out.append([data3, data1, data2])
 
     return out
 

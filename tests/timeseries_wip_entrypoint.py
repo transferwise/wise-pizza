@@ -39,7 +39,7 @@ sf = explain_timeseries(
     time_name=time,
     verbose=False,
     solver="tree",
-    fit_sizes=False,
+    fit_sizes=True,
 )
 sf.plot(plot_is_static=False, height=1000, width=1000, average_name="VPC")
 print(sf.summary())

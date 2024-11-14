@@ -19,9 +19,9 @@ def create_time_basis(
     const = np.ones(len(t))
     linear = np.cumsum(const)
     linear -= linear.mean()  # now orthogonal to const
-    col_names = ["Slope"]
+    col_names = ["Intercept", "Slope"]
 
-    dummies = [linear]
+    dummies = [const, linear]
 
     if include_breaks:
         for i in range(1, len(t)):
@@ -47,7 +47,7 @@ def prune_time_basis(
     # from all the possible kinks, choose evenly spaced num_breaks ones
     for i in range(1, num_breaks + 1):
         chosen_cols.append(dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))])
-    pre_basis = time_basis[list(time_basis.columns[:2]) + chosen_cols].copy()
+    pre_basis = time_basis[["Intercept", "Slope"] + chosen_cols].copy()
     if solver != "tree":
         # TODO: fix this bug
         for c in chosen_cols:

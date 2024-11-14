@@ -158,14 +158,15 @@ class SliceFinder:
         dim_df = dim_df.astype(str)
 
         dims = list(dim_df.columns)
+        if groupby_dims is not None:
+            dims = [d for d in dims if d not in groupby_dims]
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
 
-        if time_col is not None:
-            dim_df["__time"] = time_col
+        if groupby_dims is not None:
             dim_df = pd.merge(dim_df, time_basis, on=groupby_dims)
             sort_dims = dims + groupby_dims
         else:
@@ -173,6 +174,11 @@ class SliceFinder:
 
         dim_df = dim_df.sort_values(sort_dims)
         dim_df = dim_df[dim_df["weights"] > 0]
+
+        if len(groupby_dims) == 2:
+            source_df = dim_df[dim_df["chunk"] == "Average"]
+        else:
+            source_df = dim_df
 
         # Transform the time basis from table by date to matrices by dataset row
         if time_col is not None:
@@ -184,12 +190,12 @@ class SliceFinder:
             #     # take all the values a nudge away from zero so we can divide by them later
             #     this_ts[np.abs(this_ts) < 1e-6 * max_val] = 1e-6 * max_val
             #     self.time_basis[c] = csc_matrix(this_ts)
-            self.time = dim_df["__time"].values
+            self.time = source_df["__time"].values
         # else:
         #     self.time_basis = None
 
-        self.weights = dim_df["weights"].values
-        self.totals = dim_df["totals"].values
+        self.weights = source_df["weights"].values
+        self.totals = source_df["totals"].values
 
         # While we still have weights and totals as part of the dataframe, let's produce clusters
         # of dimension values with similar outcomes
@@ -203,7 +209,7 @@ class SliceFinder:
                     "Ignoring cluster_values argument as tree solver makes its own clusters"
                 )
             if time_basis is None:
-                self.X, self.col_defs, self.cluster_names, _ = tree_solver(
+                self.X, self.col_defs, self.cluster_names, _, _ = tree_solver(
                     dim_df=dim_df,
                     dims=dims,
                     num_leaves=max_segments,
@@ -233,14 +239,18 @@ class SliceFinder:
                     time_fitter_model=time_fitter_model,
                     groupby_dims=groupby_dims,
                 )
-                self.X, self.col_defs, self.cluster_names, self.avg_prediction = (
-                    tree_solver(
-                        dim_df=dim_df,
-                        dims=dims,
-                        fitter=fitter,
-                        num_leaves=max_segments,
-                        max_depth=max_depth,
-                    )
+                (
+                    self.X,
+                    self.col_defs,
+                    self.cluster_names,
+                    self.avg_prediction,
+                    self.weight_total_prediction,
+                ) = tree_solver(
+                    dim_df=dim_df,
+                    dims=dims,
+                    fitter=fitter,
+                    num_leaves=max_segments,
+                    max_depth=max_depth,
                 )
             self.nonzeros = np.array(range(self.X.shape[1]))
 
