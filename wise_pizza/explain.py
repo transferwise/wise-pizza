@@ -536,6 +536,7 @@ def _explain_timeseries(
     constrain_signs: bool = False,
     cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
+    num_breaks: int = 2,
 ):
     """
     Find segments whose average is most different from the global one
@@ -557,7 +558,6 @@ def _explain_timeseries(
     @return: A fitted object
     """
 
-    # strip out constants and possibly linear trends for each dimension combination
     baseline_dims = 1
     if time_basis is None:
         time_basis = create_time_basis(
@@ -565,17 +565,18 @@ def _explain_timeseries(
         )
         dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
         chosen_cols = []
-        num_breaks = 2
+        # from all the possible kinks, choose evenly spaced num_breaks ones
         for i in range(1, num_breaks + 1):
             chosen_cols.append(
                 dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))]
             )
         pre_basis = time_basis[list(time_basis.columns[:2]) + chosen_cols].copy()
-        # TODO: fix this bug
-        for c in chosen_cols:
-            pre_basis[c + "_a"] = pre_basis["Slope"] - pre_basis[c]
+        if solver != "tree":
+            # TODO: fix this bug
+            for c in chosen_cols:
+                pre_basis[c + "_a"] = pre_basis["Slope"] - pre_basis[c]
 
-        # print("yay!")
+    # strip out constants and possibly linear trends for each dimension combination
     pre_normalize = False
     if pre_normalize:
         # TODO: do we need this normalization at all?
@@ -645,8 +646,10 @@ def _explain_timeseries(
 
         s["naive_avg"] += average
         s["total"] += average * s["seg_size"]
-    # print(average)
-    # sf.reg.intercept_ += average
+
+    if solver == "tree":
+        sf.segments = sorted(sf.segments, key=lambda x: x["total"], reverse=True)
+
     if solver == "tree":
         plot_fun = plot_time_from_tree
     else:

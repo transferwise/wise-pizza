@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Lasso
+from sklearn.linear_model import Lasso, LinearRegression
 
 
 class Fitter(ABC):
@@ -111,6 +111,7 @@ class TimeFitterLinearModel(TimeFitterModel):
 
     def fit(self, X: pd.DataFrame, y, sample_weight=None):
         assert self.time_col in X.columns
+        X = X.copy()
         X["target"] = y
         X["weights"] = sample_weight
         this_basis = pd.merge(
@@ -119,9 +120,9 @@ class TimeFitterLinearModel(TimeFitterModel):
             left_on=self.time_col,
             right_index=True,
         )
-        self.reg = Lasso(alpha=1e-6).fit(
-            this_basis[self.basis.columns],
-            this_basis["target"],
+        self.reg = LinearRegression().fit(
+            X=this_basis[self.basis.columns],
+            y=this_basis["target"],
             sample_weight=None if sample_weight is None else this_basis["weights"],
         )
         ## testing code begins
@@ -134,7 +135,6 @@ class TimeFitterLinearModel(TimeFitterModel):
         #     }
         # )
         ## testing code ends
-        print("yay!")
 
     def predict(self, X: pd.DataFrame):
         assert self.time_col in X.columns

@@ -21,7 +21,15 @@ from wise_pizza.solve.fitter import TimeFitterLinearModel
 
 
 def _summary(obj) -> str:
-    out = {"task": obj.task, "segments": obj.segments}
+    out = {
+        "task": obj.task,
+        "segments": {
+            k: v
+            for s in obj.segments
+            for k, v in s.items()
+            if k in ["segment", "total", "seg_size", "naive_avg"]
+        },
+    }
     return json.dumps(out)
 
 
@@ -187,7 +195,7 @@ class SliceFinder:
         clusters = defaultdict(list)
         self.cluster_names = {}
 
-        avg_prediction = None
+        self.avg_prediction = None
         if solver == "tree":
             if cluster_values:
                 warnings.warn(
@@ -217,12 +225,14 @@ class SliceFinder:
                     time_col="__time",
                 )
 
-                self.X, self.col_defs, self.cluster_names, avg_prediction = tree_solver(
-                    dim_df=dim_df,
-                    dims=dims,
-                    time_fitter=time_fitter,
-                    num_leaves=max_segments,
-                    max_depth=max_depth,
+                self.X, self.col_defs, self.cluster_names, self.avg_prediction = (
+                    tree_solver(
+                        dim_df=dim_df,
+                        dims=dims,
+                        time_fitter=time_fitter,
+                        num_leaves=max_segments,
+                        max_depth=max_depth,
+                    )
                 )
             self.nonzeros = np.array(range(self.X.shape[1]))
 
@@ -301,10 +311,6 @@ class SliceFinder:
                 dummy = (this_vec / time_mult).astype(int).astype(np.float64)
             else:
                 dummy = this_vec.astype(int)
-
-            if avg_prediction is not None:
-                s["prediction"] = np.zeros(dummy.shape, dtype=np.float64)
-                s["prediction"][dummy == 1] = avg_prediction[dummy == 1]
 
             this_wgts = self.weights * dummy
             wgt = this_wgts.sum()

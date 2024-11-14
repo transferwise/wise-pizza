@@ -52,8 +52,9 @@ def tree_solver(
     for l, leaf in enumerate(leaves):
         leaf.df["Segment_id"] = l
 
+    # The convention in the calling code is first dims then time
     re_df = pd.concat([leaf.df for leaf in leaves]).sort_values(
-        dims if time_fitter is None else ["__time"] + dims
+        dims if time_fitter is None else dims + ["__time"]
     )
     X = pd.get_dummies(re_df["Segment_id"]).values
 
@@ -198,11 +199,14 @@ def get_best_subtree_result(
 
 
 def build_tree(root: ModelNode, num_leaves: int, max_depth: Optional[int] = 1000):
-    for _ in range(num_leaves - 1):
+    for i in range(num_leaves - 1):
+        print(f"Adding node {i+1}...")
         best_node = get_best_subtree_result(root, max_depth)
         if best_node.error_improvement > 0:
             best_node.children = best_node._best_submodels
+            print("Done!")
         else:
+            print("No more improvement, stopping")
             break
 
 

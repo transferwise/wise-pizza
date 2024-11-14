@@ -33,7 +33,7 @@ sf = explain_timeseries(
     dims=dims,
     min_segments=7,
     min_depth=1,
-    max_depth=3,
+    max_depth=2,
     total_name=totals,
     size_name=size,
     time_name=time,
@@ -41,6 +41,6 @@ sf = explain_timeseries(
     solver="tree",
     fit_sizes=False,
 )
-sf.plot(plot_is_static=False, height=1400, width=1500, average_name="AVERAGE")
+sf.plot(plot_is_static=False, height=100, width=200, average_name="VPC")
 print(sf.summary())
 print("yay!")

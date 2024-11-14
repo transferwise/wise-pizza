@@ -34,7 +34,7 @@ def plot_time_from_tree(
     fig = make_subplots(
         rows=num_rows,
         cols=num_cols,
-        # subplot_titles=sum(plot_data.sub_titles, []),
+        subplot_titles=[data.subtitle for row in plot_data for data in row],
         specs=[[{"secondary_y": False}] * num_cols] * num_rows,
     )
 
@@ -81,19 +81,19 @@ def preprocess_for_ts_plot(
                 "time": sf.time,
                 "totals": sf.totals * s["dummy"],
                 "weights": sf.weights * s["dummy"],
-                "pred_totals": s["prediction"] * sf.weights,
+                "pred_totals": sf.avg_prediction * sf.weights * s["dummy"],
             }
         )
         time_df = this_df.groupby("time", as_index=False).sum()
         data1 = PlotData(
             regression=time_df["pred_totals"] / time_df["weights"],
             bars=time_df["totals"] / time_df["weights"],
-            subtitle=average_name + " " + str(s["segment"]),
+            subtitle=f"{average_name} for <br> {s['segment']}",
         )
         data2 = PlotData(
             regression=time_df["pred_totals"],
             bars=time_df["totals"],
-            subtitle="totals " + str(s["segment"]),
+            subtitle=f"{sf.total_name} for <br> {s['segment']}",
         )
         out.append([data1, data2])
 
