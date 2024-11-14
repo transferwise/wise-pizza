@@ -371,16 +371,17 @@ def explain_timeseries(
     max_segments: int = None,
     min_depth: int = 1,
     max_depth: int = 2,
-    solver: str = "omp",
+    solver: str = "tree",
     verbose: bool = False,
-    constrain_signs: bool = False,
-    cluster_values: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
     fit_sizes: Optional[bool] = None,
     num_breaks: int = 2,
     log_space_weight_sc: float = 0.5,
 ):
+    assert (
+        solver == "tree"
+    ), "Only the tree solver is supported for time series at the moment"
     df = copy.copy(df)
 
     # replace NaN values in numeric columns with zeros

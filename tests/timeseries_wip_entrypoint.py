@@ -1,5 +1,4 @@
 import os, sys
-import numpy as np
 import pandas as pd
 
 root_path = os.path.realpath("../..")
@@ -38,7 +37,7 @@ sf = explain_timeseries(
     time_name=time,
     verbose=False,
     solver="tree",
-    fit_sizes=True,
+    fit_sizes=False,
 )
 sf.plot(plot_is_static=False, height=1500, width=1000, average_name="VPC")
 print(sf.summary())

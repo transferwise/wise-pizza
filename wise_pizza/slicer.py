@@ -180,7 +180,7 @@ class SliceFinder:
         dim_df = dim_df.sort_values(sort_dims)
         dim_df = dim_df[dim_df["weights"] > 0]
 
-        if len(groupby_dims) == 2:
+        if groupby_dims is not None and len(groupby_dims) == 2:
             source_df = dim_df[dim_df["chunk"] == "Average"]
         else:
             source_df = dim_df
@@ -282,7 +282,6 @@ class SliceFinder:
                     max_depth,
                     force_dim=force_dim,
                     clusters=clusters,
-                    time_basis=self.time_basis,
                 )
                 assert len(self.col_defs) == self.X.shape[1]
                 self.min_depth = min_depth

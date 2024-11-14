@@ -49,19 +49,24 @@ def kmeans_partition(df: pd.DataFrame, dim: str, groupby_dims: List[str]):
     pivot_df = agg_df.pivot(
         index=groupby_dims, columns=dim, values="__avg"
     ).reset_index()
-    nice_mats = {}
-    for chunk in ["Average", "Weights"]:
-        this_df = pivot_df[pivot_df["chunk"] == chunk]
-        value_cols = [c for c in this_df.columns if c not in groupby_dims]
-        nice_values = fill_gaps(this_df[value_cols].values)
-        if chunk == "Weights":
-            nice_values = (
-                np.mean(nice_mats["Average"])
-                * nice_values
-                / np.sum(nice_values, axis=0, keepdims=True)
-            )
-        nice_mats[chunk] = nice_values
-    joint_mat = np.concatenate([nice_mats["Average"], nice_mats["Weights"]], axis=0)
+    value_cols = [c for c in pivot_df.columns if c not in groupby_dims]
+
+    if len(groupby_dims) == 2:
+        nice_mats = {}
+        for chunk in ["Average", "Weights"]:
+            this_df = pivot_df[pivot_df["chunk"] == chunk]
+            nice_values = fill_gaps(this_df[value_cols].values)
+            if chunk == "Weights":
+                nice_values = (
+                    np.mean(nice_mats["Average"])
+                    * nice_values
+                    / np.sum(nice_values, axis=0, keepdims=True)
+                )
+            nice_mats[chunk] = nice_values
+        joint_mat = np.concatenate([nice_mats["Average"], nice_mats["Weights"]], axis=0)
+    else:
+        joint_mat = fill_gaps(pivot_df[value_cols].values)
+
     weights = pivot_df[value_cols].T.sum(axis=1)
     vector_dict = {}
     for i, c in enumerate(value_cols):
