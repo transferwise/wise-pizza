@@ -13,7 +13,7 @@ from wise_pizza.cluster import nice_cluster_names
 def tree_solver(
     dim_df: pd.DataFrame,
     dims: List[str],
-    time_fitter: TimeFitterModel | None = None,
+    fitter: Fitter,
     max_depth: Optional[int] = None,
     num_leaves: Optional[int] = None,
 ):
@@ -21,15 +21,11 @@ def tree_solver(
     Partition the data into segments using a greedy binary tree approach
     :param dim_df: DataFrame with dimensions, totals, and similar data, sorted by time and dims
     :param dims: List of dimensions the dataset is segmented by
-    :param time_fitter: A time series model to fit
+    :param fitter: A model to fit on the chunks
     :param max_depth: max depth of the tree
     :param num_leaves: num leaves to generate
     :return: Segment description, column definitions, and cluster names
     """
-    if time_fitter is None:
-        fitter = AverageFitter()
-    else:
-        fitter = TimeFitter(dims=dims, time_col="__time", time_fitter_model=time_fitter)
 
     df = dim_df.copy().reset_index(drop=True)
     df["__avg"] = df["totals"] / df["weights"]
@@ -39,7 +35,7 @@ def tree_solver(
         df=df,
         fitter=fitter,
         dims=dims,
-        time_col=None if time_fitter is None else "__time",
+        time_col=None if isinstance(fitter, AverageFitter) else "__time",
         max_depth=max_depth,
     )
 
@@ -54,7 +50,7 @@ def tree_solver(
 
     # The convention in the calling code is first dims then time
     re_df = pd.concat([leaf.df for leaf in leaves]).sort_values(
-        dims if time_fitter is None else dims + ["__time"]
+        dims if isinstance(fitter, AverageFitter) else dims + fitter.groupby_dims
     )
     X = pd.get_dummies(re_df["Segment_id"]).values
 

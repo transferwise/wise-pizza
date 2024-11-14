@@ -17,7 +17,7 @@ from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
 from wise_pizza.solve.tree import tree_solver
 from wise_pizza.solve.solver import solve_lasso
-from wise_pizza.solve.fitter import TimeFitterLinearModel
+from wise_pizza.solve.fitter import TimeFitterLinearModel, AverageFitter, TimeFitter
 
 
 def _summary(obj) -> str:
@@ -118,6 +118,7 @@ class SliceFinder:
         force_add_up: bool = False,
         constrain_signs: bool = True,
         cluster_values: bool = True,
+        groupby_dims: Optional[List[str]] = None,
     ):
         """
         Function to fit slicer and find segments
@@ -165,8 +166,8 @@ class SliceFinder:
 
         if time_col is not None:
             dim_df["__time"] = time_col
-            dim_df = pd.merge(dim_df, time_basis, left_on="__time", right_index=True)
-            sort_dims = dims + ["__time"]
+            dim_df = pd.merge(dim_df, time_basis, on=groupby_dims)
+            sort_dims = dims + groupby_dims
         else:
             sort_dims = dims
 
@@ -176,16 +177,16 @@ class SliceFinder:
         # Transform the time basis from table by date to matrices by dataset row
         if time_col is not None:
             self.basis_df = time_basis
-            self.time_basis = {}
-            for c in time_basis.columns:
-                this_ts = dim_df[c].values.reshape((-1, 1))
-                max_val = np.abs(this_ts).max()
-                # take all the values a nudge away from zero so we can divide by them later
-                this_ts[np.abs(this_ts) < 1e-6 * max_val] = 1e-6 * max_val
-                self.time_basis[c] = csc_matrix(this_ts)
+            # self.time_basis = {}
+            # for c in time_basis.columns:
+            #     this_ts = dim_df[c].values.reshape((-1, 1))
+            #     max_val = np.abs(this_ts).max()
+            #     # take all the values a nudge away from zero so we can divide by them later
+            #     this_ts[np.abs(this_ts) < 1e-6 * max_val] = 1e-6 * max_val
+            #     self.time_basis[c] = csc_matrix(this_ts)
             self.time = dim_df["__time"].values
-        else:
-            self.time_basis = None
+        # else:
+        #     self.time_basis = None
 
         self.weights = dim_df["weights"].values
         self.totals = dim_df["totals"].values
@@ -207,6 +208,7 @@ class SliceFinder:
                     dims=dims,
                     num_leaves=max_segments,
                     max_depth=max_depth,
+                    fitter=AverageFitter(),
                 )
 
                 Xw = csc_matrix(diags(self.weights) @ self.X)
@@ -220,16 +222,22 @@ class SliceFinder:
                 print("")
 
             else:
-                time_fitter = TimeFitterLinearModel(
+                time_fitter_model = TimeFitterLinearModel(
                     basis=time_basis,
                     time_col="__time",
+                    groupby_dims=groupby_dims,
                 )
-
+                fitter = TimeFitter(
+                    dims=dims,
+                    time_col="__time",
+                    time_fitter_model=time_fitter_model,
+                    groupby_dims=groupby_dims,
+                )
                 self.X, self.col_defs, self.cluster_names, self.avg_prediction = (
                     tree_solver(
                         dim_df=dim_df,
                         dims=dims,
-                        time_fitter=time_fitter,
+                        fitter=fitter,
                         num_leaves=max_segments,
                         max_depth=max_depth,
                     )

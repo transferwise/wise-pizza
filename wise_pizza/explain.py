@@ -394,6 +394,7 @@ def explain_timeseries(
     if time_basis is None:
         time_basis = create_time_basis(df[time_name].unique())
         time_basis = prune_time_basis(time_basis, num_breaks=num_breaks, solver=solver)
+        time_basis = time_basis.reset_index().rename(columns={"index": "__time"})
 
     if size_name is None:
         size_name = "size"
@@ -423,7 +424,9 @@ def explain_timeseries(
     )
     df2[total_name] = pd.Series(data=t, index=df2.index)
     df2[size_name] = pd.Series(data=w, index=df2.index)
+
     # Transform logic ends
+
     if fit_sizes:
         # block-matrix df2 with itself, for the weights
         re_df = df2.copy()
@@ -434,6 +437,8 @@ def explain_timeseries(
         re_df[total_name] = df2[size_name]
         re_df["chunk"] = "Weights"
 
+        df2 = pd.concat([df2, re_df], axis=0).fillna(0.0).reset_index(drop=True)
+
         # Block-matrix basis with itself
         re_basis = time_basis.copy().rename(
             {c: c + "_w" for c in time_basis.columns}, axis=1
@@ -442,10 +447,7 @@ def explain_timeseries(
         re_basis["chunk"] = "Weights"
 
         time_basis = (
-            pd.concat([time_basis, re_basis], axis=0)
-            .fillna(0.0)
-            .reset_index()
-            .rename(columns={"index": "__time"})
+            pd.concat([time_basis, re_basis], axis=0).fillna(0.0).reset_index(drop=True)
         )
         print("yay!")
         groupby_dims = ["chunk", "__time"]
@@ -477,6 +479,7 @@ def explain_timeseries(
         max_depth=max_depth,
         solver=solver,
         verbose=verbose,
+        groupby_dims=groupby_dims,
     )
 
     # TODO: insert back the normalized bits?

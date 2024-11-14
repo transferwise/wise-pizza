@@ -7,6 +7,10 @@ from sklearn.linear_model import Lasso, LinearRegression
 
 
 class Fitter(ABC):
+    """
+    Fits and evaluates the error at dataframe level
+    """
+
     @abstractmethod
     def fit(self, X, y, sample_weight=None):
         pass
@@ -75,11 +79,16 @@ class AverageFitter(Fitter):
 
 class TimeFitter(Fitter):
     def __init__(
-        self, dims: List[str], time_col: str, time_fitter_model: TimeFitterModel
+        self,
+        dims: List[str],
+        time_col: str,
+        groupby_dims: List[str],
+        time_fitter_model: TimeFitterModel,
     ):
         self.dims = dims
         self.time_col = time_col
         self.time_fitter = time_fitter_model
+        self.groupby_dims = groupby_dims
         self.time_df = None
 
     def fit(self, X, y, sample_weight=None):
@@ -87,27 +96,36 @@ class TimeFitter(Fitter):
         X["weights"] = sample_weight
         X["totals"] = y * sample_weight
         self.time_df = (
-            X[["weights", "totals", self.time_col]]
-            .groupby(self.time_col, as_index=False)
+            X[self.groupby_dims + ["weights", "totals"]]
+            .groupby(self.groupby_dims, as_index=False)
             .sum()
         )
         self.time_df["avg_profile"] = self.time_df["totals"] / self.time_df["weights"]
         self.time_fitter.fit(
-            self.time_df[[self.time_col]],
+            self.time_df[self.groupby_dims],
             self.time_df["avg_profile"],
             self.time_df["weights"],
         )
 
     def predict(self, X):
         # predict straight away on the big table, it's row-wise anyway
-        return self.time_fitter.predict(X[[self.time_col] + self.dims])
+        return self.time_fitter.predict(X[self.groupby_dims + self.dims])
 
 
 class TimeFitterLinearModel(TimeFitterModel):
-    def __init__(self, basis: pd.DataFrame, time_col: str):
+    """
+    Fits the stylized profile of the time series with a linear model.
+    """
+
+    def __init__(self, basis: pd.DataFrame, time_col: str, groupby_dims: List[str]):
         self.basis = basis
         self.time_col = time_col
+        self.groupby_dims = groupby_dims
         self.reg = None
+
+    @property
+    def basis_cols(self):
+        return [c for c in self.basis.columns if c not in self.groupby_dims]
 
     def fit(self, X: pd.DataFrame, y, sample_weight=None):
         assert self.time_col in X.columns
@@ -115,18 +133,17 @@ class TimeFitterLinearModel(TimeFitterModel):
         X["target"] = y
         X["weights"] = sample_weight
         this_basis = pd.merge(
-            X[[self.time_col, "target", "weights"]],
+            X[self.groupby_dims + ["target", "weights"]],
             self.basis,
-            left_on=self.time_col,
-            right_index=True,
+            on=self.groupby_dims,
         )
         self.reg = LinearRegression().fit(
-            X=this_basis[self.basis.columns],
+            X=this_basis[self.basis_cols],
             y=this_basis["target"],
             sample_weight=None if sample_weight is None else this_basis["weights"],
         )
         ## testing code begins
-        # self.prediction = self.reg.predict(this_basis[self.basis.columns])
+        # self.prediction = self.reg.predict(this_basis[self.basis_cols])
         # test = pd.DataFrame(
         #     {
         #         "time": this_basis[self.time_col],
@@ -134,15 +151,17 @@ class TimeFitterLinearModel(TimeFitterModel):
         #         "prediction": self.prediction,
         #     }
         # )
+        # print("yay!")
         ## testing code ends
 
     def predict(self, X: pd.DataFrame):
-        assert self.time_col in X.columns
+        for c in self.groupby_dims:
+            assert c in X.columns
+
         this_basis = pd.merge(
             X,
             self.basis,
-            left_on=self.time_col,
-            right_index=True,
+            on=self.groupby_dims,
         )
         this_basis = this_basis.sort_values(list(X.columns))
-        return self.reg.predict(this_basis[self.basis.columns])
+        return self.reg.predict(this_basis[self.basis_cols])
