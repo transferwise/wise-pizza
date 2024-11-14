@@ -31,8 +31,7 @@ time = "DATE"
 sf = explain_timeseries(
     df=df,
     dims=dims,
-    min_segments=5,
-    min_depth=1,
+    max_segments=7,
     max_depth=2,
     total_name=totals,
     size_name=size,
@@ -41,6 +40,6 @@ sf = explain_timeseries(
     solver="tree",
     fit_sizes=True,
 )
-sf.plot(plot_is_static=False, height=1000, width=1000, average_name="VPC")
+sf.plot(plot_is_static=False, height=1500, width=1000, average_name="VPC")
 print(sf.summary())
 print("yay!")

@@ -89,17 +89,20 @@ def preprocess_for_ts_plot(
 
         time_df = this_df.groupby("time", as_index=False).sum()
 
+        segment_name = (
+            str(s["segment"]).replace(",", "<br>").replace(";", ",").replace("'", "")
+        )
         data1 = PlotData(
             regression=time_df["pred_totals"] / time_df["weights"],
             bars=time_df["totals"] / time_df["weights"],
-            subtitle=f"{average_name} for <br> {s['segment']}",
+            subtitle=f"{average_name} for <br> {segment_name}",
         )
 
         if sf.weight_total_prediction is None:
             data2 = PlotData(
                 regression=time_df["pred_totals"],
                 bars=time_df["totals"],
-                subtitle=f"{sf.total_name} for <br> {s['segment']}",
+                subtitle=f"{sf.total_name} for <br> {segment_name}",
             )
             out.append([data1, data2])
         else:
@@ -109,12 +112,12 @@ def preprocess_for_ts_plot(
                 * time_df["pred_totals"]
                 / time_df["weights"],
                 bars=time_df["totals"],
-                subtitle=f"{sf.total_name} for <br> {s['segment']}",
+                subtitle=f"{sf.total_name} for <br> {segment_name}",
             )
             data3 = PlotData(
                 regression=time_df["w_pred_totals"],
                 bars=time_df["weights"],
-                subtitle=f"{sf.size_name} for <br> {s['segment']}",
+                subtitle=f"{sf.size_name} for <br> {segment_name}",
             )
             out.append([data3, data1, data2])
 

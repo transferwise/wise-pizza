@@ -23,11 +23,16 @@ from wise_pizza.solve.fitter import TimeFitterLinearModel, AverageFitter, TimeFi
 def _summary(obj) -> str:
     out = {
         "task": obj.task,
-        "segments": {
-            k: v
+        "segments": [
+            {
+                k: v
+                for k, v in s.items()
+                if k in ["segment", "total", "seg_size", "naive_avg"]
+            }
             for s in obj.segments
-            for k, v in s.items()
-            if k in ["segment", "total", "seg_size", "naive_avg"]
+        ],
+        "relevant_clusters": {
+            k: v for k, v in obj.relevant_cluster_names.items() if "_cluster_" in k
         },
     }
     return json.dumps(out)

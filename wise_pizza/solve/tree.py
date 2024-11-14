@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix
 
-from .weighted_quantiles import weighted_quantiles
+
 from .fitter import AverageFitter, Fitter, TimeFitterModel, TimeFitter
+from .partition import target_encoding_partitions, kmeans_partition
 from wise_pizza.cluster import nice_cluster_names
 
 
@@ -75,18 +76,6 @@ def error(x: np.ndarray, y: np.ndarray) -> float:
     return np.sum((x - y) ** 2)
 
 
-def target_encode(df: pd.DataFrame, dim: str) -> dict:
-    df = df[[dim, "totals", "weights"]]
-    agg = df.groupby(dim, as_index=False).sum()
-    agg["__avg"] = agg["totals"] / agg["weights"]
-    agg["__avg"] = agg["__avg"].fillna(agg["__avg"].mean())
-    enc_map = {k: v for k, v in zip(agg[dim], agg["__avg"])}
-
-    if np.isnan(np.array(list(enc_map.values()))).any():
-        raise ValueError("NaNs in encoded values")
-    return enc_map
-
-
 class ModelNode:
     def __init__(
         self,
@@ -148,24 +137,23 @@ class ModelNode:
             for dim in iter_dims:
                 if len(self.df[dim].unique()) == 1:
                     continue
-                enc_map = target_encode(self.df, dim)
-                self.df[dim + "_encoded"] = self.df[dim].apply(lambda x: enc_map[x])
-                if np.any(np.isnan(self.df[dim + "_encoded"])):  # pragma: no cover
-                    raise ValueError("NaNs in encoded values")
-                # Get split candidates for brute force search
-                deciles = np.array([q / self.num_bins for q in range(1, self.num_bins)])
 
-                splits = weighted_quantiles(
-                    self.df[dim + "_encoded"], deciles, self.df["weights"]
-                )
+                elif len(self.df[dim].unique()) == 2:
+                    vals = self.df[dim].unique()
+                    partitions = [([vals[0]], [vals[1]])]
+                else:
+                    if isinstance(self.fitter, AverageFitter):
+                        partitions = target_encoding_partitions(
+                            self.df, dim, self.num_bins
+                        )
+                    else:
+                        partitions = kmeans_partition(
+                            self.df, dim, self.fitter.groupby_dims
+                        )
 
-                for split in np.unique(splits):
-                    left = self.df[self.df[dim + "_encoded"] < split]
-                    right = self.df[self.df[dim + "_encoded"] >= split]
-                    if len(left) == 0 or len(right) == 0:
-                        continue
-                    dim_values1 = [k for k, v in enc_map.items() if v < split]
-                    dim_values2 = [k for k, v in enc_map.items() if v >= split]
+                for dim_values1, dim_values2 in partitions:
+                    left = self.df[self.df[dim].isin(dim_values1)]
+                    right = self.df[self.df[dim].isin(dim_values2)]
                     left_candidate = ModelNode(
                         df=left,
                         fitter=self.fitter,
