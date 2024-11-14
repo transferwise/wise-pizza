@@ -180,7 +180,7 @@ def diff_dataset(
 
 def prepare_df(
     df: pd.DataFrame,
-    dims: str,
+    dims: List[str],
     size_name: Optional[str] = None,
     total_name: str = "VOLUME",
     time_name: Optional[str] = None,

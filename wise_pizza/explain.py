@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from numpy.ma.extras import average
 
+
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 from wise_pizza.plotting import (
@@ -18,7 +19,12 @@ from wise_pizza.plotting_time_tree import plot_time_from_tree
 from wise_pizza.slicer import SliceFinder, SlicerPair
 from wise_pizza.slicer_facades import TransformedSliceFinder
 from wise_pizza.utils import diff_dataset, prepare_df, almost_equals
-from wise_pizza.time import create_time_basis, add_average_over_time, extend_dataframe
+from wise_pizza.time import (
+    create_time_basis,
+    add_average_over_time,
+    extend_dataframe,
+    prune_time_basis,
+)
 from wise_pizza.transform import IdentityTransform, LogTransform
 
 
@@ -372,6 +378,7 @@ def explain_timeseries(
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
     fit_sizes: Optional[bool] = None,
+    num_breaks: int = 2,
     log_space_weight_sc: float = 0.5,
 ):
     df = copy.copy(df)
@@ -384,6 +391,10 @@ def explain_timeseries(
     )
     df = df.sort_values(by=dims + [time_name])
 
+    if time_basis is None:
+        time_basis = create_time_basis(df[time_name].unique())
+        time_basis = prune_time_basis(time_basis, num_breaks=num_breaks, solver=solver)
+
     if size_name is None:
         size_name = "size"
         df[size_name] = 1.0
@@ -394,6 +405,7 @@ def explain_timeseries(
         if fit_sizes is None:
             fit_sizes = True
 
+    # Transform logic begins (unused for now)
     if fit_log_space:
         tf = LogTransform(
             offset=1,
@@ -406,223 +418,65 @@ def explain_timeseries(
     total_name_orig = total_name + "_orig"
 
     df2 = df.rename(columns={size_name: size_name_orig, total_name: total_name_orig})
-
-    if not fit_sizes:
-        t, w = tf.transform_totals_weights(
-            df2[total_name_orig].values, df2[size_name_orig].values
-        )
-        df2[total_name] = pd.Series(data=t, index=df2.index)
-        df2[size_name] = pd.Series(data=w, index=df2.index)
-        sf_totals = _explain_timeseries(
-            df=df2,
-            dims=dims,
-            total_name=total_name,
-            time_name=time_name,
-            size_name=size_name,
-            min_segments=min_segments,
-            max_segments=max_segments,
-            min_depth=min_depth,
-            max_depth=max_depth,
-            solver=solver,
-            verbose=verbose,
-            constrain_signs=constrain_signs,
-            cluster_values=cluster_values,
-            time_basis=time_basis,
-        )
-        return sf_totals  # TransformedSliceFinder(sf_totals, transformer=tf)
-
-    this_w = np.ones_like(df2[size_name_orig].values)
-    these_totals = df2[size_name_orig].values
-
-    tf.test_transforms(this_w, these_totals)
-
-    t, w = tf.transform_totals_weights(these_totals, this_w)
-    df2[size_name] = pd.Series(data=t, index=df2.index)
-    df2["resc_wgt"] = pd.Series(data=w, index=df2.index)
-
-    sf_wgt = _explain_timeseries(
-        df=df2,
-        dims=dims,
-        total_name=size_name,
-        size_name="resc_wgt",
-        time_name=time_name,
-        min_segments=min_segments,
-        max_segments=max_segments,
-        min_depth=min_depth,
-        max_depth=max_depth,
-        solver=solver,
-        verbose=verbose,
-        constrain_signs=constrain_signs,
-        cluster_values=cluster_values,
-        time_basis=time_basis,
+    t, w = tf.transform_totals_weights(
+        df2[total_name_orig].values, df2[size_name_orig].values
     )
-
-    sf1 = TransformedSliceFinder(sf_wgt, transformer=tf)
-
-    # Replace actual weights with fitted ones, for consistent extrapolation
-    eps = 1e-3
-    fitted_sizes = np.maximum(sf1.predicted_totals, eps)
-    fitted_sizes[np.isnan(fitted_sizes)] = eps
-    actual_avgs = df2[total_name_orig].values / df2[size_name_orig].values
-    adj_totals = actual_avgs * fitted_sizes
-
-    if fit_log_space:
-        tf2 = LogTransform(offset=1, weight_pow_sc=log_space_weight_sc)
-    else:
-        tf2 = IdentityTransform()
-
-    tf2.test_transforms(adj_totals, fitted_sizes)
-
-    t, w = tf2.transform_totals_weights(adj_totals, fitted_sizes)
     df2[total_name] = pd.Series(data=t, index=df2.index)
     df2[size_name] = pd.Series(data=w, index=df2.index)
+    # Transform logic ends
+    if fit_sizes:
+        # block-matrix df2 with itself, for the weights
+        re_df = df2.copy()
+        df2["chunk"] = "Average"
 
-    sf_totals = _explain_timeseries(
-        df=df2,
-        dims=dims,
-        total_name=total_name,
-        time_name=time_name,
-        size_name=size_name,
-        min_segments=min_segments,
-        max_segments=max_segments,
-        min_depth=min_depth,
-        max_depth=max_depth,
-        solver=solver,
-        verbose=verbose,
-        constrain_signs=constrain_signs,
-        cluster_values=cluster_values,
-        time_basis=time_basis,
-    )
+        # Normalize so the new chunk has same total weight as the original
+        re_df[size_name] = df2[total_name].sum() / df2[size_name].sum()
+        re_df[total_name] = df2[size_name]
+        re_df["chunk"] = "Weights"
 
-    assert almost_equals(t, sf_totals.actual_totals)
-    assert almost_equals(w, sf_totals.weights)
-
-    sf2 = TransformedSliceFinder(sf_totals, tf2)
-
-    assert almost_equals(adj_totals, sf2.actual_totals)
-    assert almost_equals(fitted_sizes, sf2.weights)
-
-    out = SlicerPair(sf1, sf2)
-    out.relevant_cluster_names1 = sf1.relevant_cluster_names
-    out.relevant_cluster_names2 = sf2.relevant_cluster_names
-
-    out.plot = lambda plot_is_static=False, width=600, height=1200, return_fig=False, average_name=None, use_fitted_weights=False: plot_ts_pair(
-        out.s1,
-        out.s2,
-        plot_is_static=plot_is_static,
-        width=width,
-        height=height,
-        return_fig=return_fig,
-        average_name=average_name,
-        use_fitted_weights=use_fitted_weights,
-    )
-    out.task = "time with weights"
-    return out
-
-
-def _explain_timeseries(
-    df: pd.DataFrame,
-    dims: List[str],
-    total_name: str,
-    time_name: str,
-    size_name: Optional[str] = None,
-    min_segments: int = None,
-    max_segments: int = 5,
-    min_depth: int = 1,
-    max_depth: int = 2,
-    solver: str = "omp",
-    verbose: bool = False,
-    force_add_up: bool = False,
-    constrain_signs: bool = False,
-    cluster_values: bool = False,
-    time_basis: Optional[pd.DataFrame] = None,
-    num_breaks: int = 2,
-):
-    """
-    Find segments whose average is most different from the global one
-    @param df: Dataset
-    @param dims: List of discrete dimensions
-    @param total_name: Name of column that contains totals per segment
-    @param size_name: Name of column containing segment sizes
-    @param time_name: Name of column containing the time dimension
-    @param min_segments: Minimum number of segments to find
-    @param max_segments: Maximum number of segments to find, defaults to min_segments
-    @param min_depth: Minimum number of dimension to constrain in segment definition
-    @param max_depth: Maximum number of dimension to constrain in segment definition
-    @param solver: If this equals to "lp" uses the LP solver, else uses the (recommended) Lasso solver
-    @param verbose: If set to a truish value, lots of debug info is printed to console
-    @param force_add_up: Force the contributions of chosen segments to add up to zero
-    @param constrain_signs: Whether to constrain weights of segments to have the same sign as naive segment averages
-    @param cluster_values In addition to single-value slices, consider slices that consist of a
-    group of segments from the same dimension with similar naive averages
-    @return: A fitted object
-    """
-
-    baseline_dims = 1
-    if time_basis is None:
-        time_basis = create_time_basis(
-            df[time_name].unique(), baseline_dims=baseline_dims, include_breaks=True
+        # Block-matrix basis with itself
+        re_basis = time_basis.copy().rename(
+            {c: c + "_w" for c in time_basis.columns}, axis=1
         )
-        dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
-        chosen_cols = []
-        # from all the possible kinks, choose evenly spaced num_breaks ones
-        for i in range(1, num_breaks + 1):
-            chosen_cols.append(
-                dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))]
-            )
-        pre_basis = time_basis[list(time_basis.columns[:2]) + chosen_cols].copy()
-        if solver != "tree":
-            # TODO: fix this bug
-            for c in chosen_cols:
-                pre_basis[c + "_a"] = pre_basis["Slope"] - pre_basis[c]
+        time_basis["chunk"] = "Average"
+        re_basis["chunk"] = "Weights"
 
-    # strip out constants and possibly linear trends for each dimension combination
-    pre_normalize = False
-    if pre_normalize:
-        # TODO: do we need this normalization at all?
-        df, avg_df = add_average_over_time(
-            df,
-            dims=dims,
-            total_name=total_name,
-            size_name=size_name,
-            time_name=time_name,
-            cartesian=False,
+        time_basis = (
+            pd.concat([time_basis, re_basis], axis=0)
+            .fillna(0.0)
+            .reset_index()
+            .rename(columns={"index": "__time"})
         )
-        # The join in the above function could have messed up the ordering
-        df = df.sort_values(by=dims + [time_name])
-
-        # This block is pointless as we just normalized each sub-segment to zero average across time
-        average = df[total_name].sum() / df[size_name].sum()
-        df["_target"] = df[total_name] - df["total_adjustment"]
+        print("yay!")
+        groupby_dims = ["chunk", "__time"]
     else:
-        df["_target"] = df[total_name]
-        df["total_adjustment"] = 0.0
-        avg_df = 0.0
-        average = 0.0
+        groupby_dims = ["__time"]
+
+    df2["_target"] = df2[total_name]
+    df2["total_adjustment"] = 0.0
+    avg_df = 0.0
+    average = 0.0
 
     sf = SliceFinder()
     sf.global_average = average
     sf.total_name = total_name
     sf.size_name = size_name
     sf.time_name = time_name
-    sf.y_adj = df["total_adjustment"].values
+    sf.y_adj = df2["total_adjustment"].values
     sf.avg_df = avg_df
-    sf.time_values = df[time_name].unique()
+    sf.time_values = df2[time_name].unique()
     sf.fit(
-        df[dims],
-        df["_target"],
-        time_col=df[time_name],
-        time_basis=pre_basis,
-        weights=df[size_name],
+        df2[dims],
+        df2["_target"],
+        time_col=df2[time_name],
+        time_basis=time_basis,
+        weights=df2[size_name],
         min_segments=min_segments,
         max_segments=max_segments,
         min_depth=min_depth,
         max_depth=max_depth,
         solver=solver,
         verbose=verbose,
-        force_add_up=force_add_up,
-        constrain_signs=constrain_signs,
-        cluster_values=cluster_values,
     )
 
     # TODO: insert back the normalized bits?
