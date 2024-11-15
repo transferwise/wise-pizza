@@ -96,8 +96,15 @@ def nice_cluster_names(x: List[Dict[str, List[str]]]) -> Tuple[List[Dict], Dict]
     for dim, clusters in cluster_strings.items():
         reverse_cluster_names[dim] = {}
         for i, c in enumerate(clusters):
-            cluster_names[f"{dim}_cluster_{i + 1}"] = c
-            reverse_cluster_names[dim][c] = f"{dim}_cluster_{i + 1}"
+            ugly_name = f"{dim}_cluster_{i + 1}"
+            nice_name = c.replace("@@", ";")
+            if len(nice_name) < 1.2 * len(ugly_name):
+                name = nice_name
+            else:
+                name = ugly_name
+
+            cluster_names[name] = c
+            reverse_cluster_names[dim][c] = name
 
     col_defs = []
     for xx in x:

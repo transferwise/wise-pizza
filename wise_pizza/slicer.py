@@ -17,10 +17,24 @@ from wise_pizza.time import extend_dataframe
 from wise_pizza.slicer_facades import SliceFinderPredictFacade
 from wise_pizza.solve.tree import tree_solver
 from wise_pizza.solve.solver import solve_lasso
+from wise_pizza.solve.fitter import TimeFitterLinearModel, AverageFitter, TimeFitter
 
 
 def _summary(obj) -> str:
-    out = {"task": obj.task, "segments": obj.segments}
+    out = {
+        "task": obj.task,
+        "segments": [
+            {
+                k: v
+                for k, v in s.items()
+                if k in ["segment", "total", "seg_size", "naive_avg"]
+            }
+            for s in obj.segments
+        ],
+        "relevant_clusters": {
+            k: v for k, v in obj.relevant_cluster_names.items() if "_cluster_" in k
+        },
+    }
     return json.dumps(out)
 
 
@@ -109,6 +123,7 @@ class SliceFinder:
         force_add_up: bool = False,
         constrain_signs: bool = True,
         cluster_values: bool = True,
+        groupby_dims: Optional[List[str]] = None,
     ):
         """
         Function to fit slicer and find segments
@@ -148,66 +163,102 @@ class SliceFinder:
         dim_df = dim_df.astype(str)
 
         dims = list(dim_df.columns)
+        if groupby_dims is not None:
+            dims = [d for d in dims if d not in groupby_dims]
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
 
-        if time_col is not None:
-            dim_df["__time"] = time_col
-            dim_df = pd.merge(dim_df, time_basis, left_on="__time", right_index=True)
-            sort_dims = dims + ["__time"]
+        if groupby_dims is not None:
+            dim_df = pd.merge(dim_df, time_basis, on=groupby_dims)
+            sort_dims = dims + groupby_dims
         else:
             sort_dims = dims
 
         dim_df = dim_df.sort_values(sort_dims)
         dim_df = dim_df[dim_df["weights"] > 0]
 
+        if groupby_dims is not None and len(groupby_dims) == 2:
+            source_df = dim_df[dim_df["chunk"] == "Average"]
+        else:
+            source_df = dim_df
+
         # Transform the time basis from table by date to matrices by dataset row
         if time_col is not None:
             self.basis_df = time_basis
-            self.time_basis = {}
-            for c in time_basis.columns:
-                this_ts = dim_df[c].values.reshape((-1, 1))
-                max_val = np.abs(this_ts).max()
-                # take all the values a nudge away from zero so we can divide by them later
-                this_ts[np.abs(this_ts) < 1e-6 * max_val] = 1e-6 * max_val
-                self.time_basis[c] = csc_matrix(this_ts)
-            self.time = dim_df["__time"].values
-        else:
-            self.time_basis = None
+            # self.time_basis = {}
+            # for c in time_basis.columns:
+            #     this_ts = dim_df[c].values.reshape((-1, 1))
+            #     max_val = np.abs(this_ts).max()
+            #     # take all the values a nudge away from zero so we can divide by them later
+            #     this_ts[np.abs(this_ts) < 1e-6 * max_val] = 1e-6 * max_val
+            #     self.time_basis[c] = csc_matrix(this_ts)
+            self.time = source_df["__time"].values
+        # else:
+        #     self.time_basis = None
 
-        self.weights = dim_df["weights"].values
-        self.totals = dim_df["totals"].values
+        self.weights = source_df["weights"].values
+        self.totals = source_df["totals"].values
 
         # While we still have weights and totals as part of the dataframe, let's produce clusters
         # of dimension values with similar outcomes
         clusters = defaultdict(list)
         self.cluster_names = {}
 
+        self.avg_prediction = None
         if solver == "tree":
             if cluster_values:
                 warnings.warn(
                     "Ignoring cluster_values argument as tree solver makes its own clusters"
                 )
-            self.X, self.col_defs, self.cluster_names = tree_solver(
-                dim_df=dim_df,
-                dims=dims,
-                time_basis=self.time_basis,
-                num_leaves=max_segments,
-                max_depth=max_depth,
-            )
+            if time_basis is None:
+                self.X, self.col_defs, self.cluster_names, _, _ = tree_solver(
+                    dim_df=dim_df,
+                    dims=dims,
+                    num_leaves=max_segments,
+                    max_depth=max_depth,
+                    fitter=AverageFitter(),
+                )
+
+                Xw = csc_matrix(diags(self.weights) @ self.X)
+                self.reg = solve_lasso(
+                    Xw.toarray(),
+                    self.totals,
+                    alpha=1e-5,
+                    verbose=self.verbose,
+                    fit_intercept=False,
+                )
+                print("")
+
+            else:
+                time_fitter_model = TimeFitterLinearModel(
+                    basis=time_basis,
+                    time_col="__time",
+                    groupby_dims=groupby_dims,
+                )
+                fitter = TimeFitter(
+                    dims=dims,
+                    time_col="__time",
+                    time_fitter_model=time_fitter_model,
+                    groupby_dims=groupby_dims,
+                )
+                (
+                    self.X,
+                    self.col_defs,
+                    self.cluster_names,
+                    self.avg_prediction,
+                    self.weight_total_prediction,
+                ) = tree_solver(
+                    dim_df=dim_df,
+                    dims=dims,
+                    fitter=fitter,
+                    num_leaves=max_segments,
+                    max_depth=max_depth,
+                )
             self.nonzeros = np.array(range(self.X.shape[1]))
-            Xw = csc_matrix(diags(self.weights) @ self.X)
-            self.reg = solve_lasso(
-                Xw.toarray(),
-                self.totals,
-                alpha=1e-5,
-                verbose=self.verbose,
-                fit_intercept=False,
-            )
-            print("")
+
         else:
             if cluster_values:
                 self.cluster_names = make_clusters(dim_df, dims)
@@ -231,7 +282,6 @@ class SliceFinder:
                     max_depth,
                     force_dim=force_dim,
                     clusters=clusters,
-                    time_basis=self.time_basis,
                 )
                 assert len(self.col_defs) == self.X.shape[1]
                 self.min_depth = min_depth
@@ -260,7 +310,7 @@ class SliceFinder:
             {"segment": self.col_defs[i], "index": int(i)} for i in self.nonzeros
         ]
 
-        wgts = np.array((np.abs(Xw[:, self.nonzeros]) > 0).sum(axis=0))[0]
+        # wgts = np.array((np.abs(Xw[:, self.nonzeros]) > 0).sum(axis=0))[0]
 
         for i, s in enumerate(self.segments):
             segment_def = s["segment"]
@@ -271,7 +321,7 @@ class SliceFinder:
                     -1,
                 )
             )
-            if "time" in segment_def:
+            if "time" in segment_def and solver != "tree":
                 # Divide out the time profile mult - we've made sure it's always nonzero
                 time_mult = (
                     self.time_basis[segment_def["time"]]
@@ -282,21 +332,36 @@ class SliceFinder:
                 )
                 dummy = (this_vec / time_mult).astype(int).astype(np.float64)
             else:
-                dummy = this_vec
+                dummy = this_vec.astype(int)
 
             this_wgts = self.weights * dummy
             wgt = this_wgts.sum()
             # assert wgt == wgts[i]
             s["orig_i"] = i
-            s["coef"] = self.reg.coef_[i]
-            # TODO: does not taking the abs of coef here break time series?
-            s["impact"] = s["coef"] * (np.abs(this_vec) * self.weights).sum()
-            s["avg_impact"] = s["impact"] / sum(self.weights)
             s["total"] = (self.totals * dummy).sum()
             s["seg_size"] = wgt
             s["naive_avg"] = s["total"] / wgt
+            s["dummy"] = dummy
 
-        if time_basis is not None:  # it's a time series product
+        if hasattr(self.reg, "coef_"):
+            for i, s in enumerate(self.segments):
+                this_vec = (
+                    self.X[:, s["index"]]
+                    .toarray()
+                    .reshape(
+                        -1,
+                    )
+                )
+                s["coef"] = self.reg.coef_[i]
+                # TODO: does not taking the abs of coef here break time series?
+                s["impact"] = s["coef"] * (np.abs(this_vec) * self.weights).sum()
+                s["avg_impact"] = s["impact"] / sum(self.weights)
+
+            self.segments = self.order_segments(self.segments)
+
+        if (
+            time_basis is not None and self.reg is not None
+        ):  # it's a time series not fitted with tree
             # Do we need this bit at all?
             predict = self.reg.predict(self.X[:, self.nonzeros]).reshape(
                 -1,
@@ -311,8 +376,6 @@ class SliceFinder:
 
             # self.enrich_segments_with_timeless_reg(self.segments, self.y_adj)
 
-        self.segments = self.order_segments(self.segments)
-
         # In some cases (mostly in a/b exps we have a situation where there is no any diff in totals/sizes)
         if len(self.segments) == 0:
             self.segments.append(
@@ -326,11 +389,6 @@ class SliceFinder:
                     "naive_avg": 0,
                 }
             )
-
-    # def enrich_segments_with_timeless_reg(self, segments, y):
-    #     pre_X = [s["dummy"] for s in segments]
-    #     X = np.concatenate()
-    #     pass
 
     @staticmethod
     def order_segments(segments: List[Dict[str, any]]):

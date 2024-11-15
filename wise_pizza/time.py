@@ -7,7 +7,7 @@ import pandas as pd
 
 def create_time_basis(
     time_values: Union[pd.DataFrame, np.ndarray],
-    include_breaks: int = 0,
+    include_breaks: bool = True,
     baseline_dims: int = 1,
 ):
     if baseline_dims != 1:
@@ -19,9 +19,9 @@ def create_time_basis(
     const = np.ones(len(t))
     linear = np.cumsum(const)
     linear -= linear.mean()  # now orthogonal to const
-    col_names = ["Slope"]
+    col_names = ["Intercept", "Slope"]
 
-    dummies = [linear]
+    dummies = [const, linear]
 
     if include_breaks:
         for i in range(1, len(t)):
@@ -37,6 +37,22 @@ def create_time_basis(
     dummies = np.stack(dummies)
     out = pd.DataFrame(index=t, columns=col_names, data=dummies.T)
     return out
+
+
+def prune_time_basis(
+    time_basis: pd.DataFrame, num_breaks: int = 2, solver: str = "tree"
+):
+    dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
+    chosen_cols = []
+    # from all the possible kinks, choose evenly spaced num_breaks ones
+    for i in range(1, num_breaks + 1):
+        chosen_cols.append(dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))])
+    pre_basis = time_basis[["Intercept", "Slope"] + chosen_cols].copy()
+    if solver != "tree":
+        # TODO: fix this bug
+        for c in chosen_cols:
+            pre_basis[c + "_a"] = pre_basis["Slope"] - pre_basis[c]
+    return pre_basis
 
 
 def extend_dataframe(df: pd.DataFrame, N: int, decay: float = 1.0) -> pd.DataFrame:
