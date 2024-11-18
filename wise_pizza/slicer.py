@@ -27,7 +27,7 @@ def _summary(obj) -> str:
             {
                 k: v
                 for k, v in s.items()
-                if k in ["segment", "total", "seg_size", "naive_avg"]
+                if k in ["segment", "total", "seg_size", "naive_avg", "impact"]
             }
             for s in obj.segments
         ],
@@ -420,7 +420,8 @@ class SliceFinder:
         relevant_clusters = {}
         for s in self.segments:
             for c in s["segment"].values():
-                if c in self.cluster_names:
+                if c in self.cluster_names and ";" not in c:
+                    # Then cluster names containing ; are snumerations, don't need explanation
                     relevant_clusters[c] = self.cluster_names[c].replace("@@", ", ")
         return relevant_clusters
 

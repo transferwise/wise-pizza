@@ -482,6 +482,7 @@ def explain_timeseries(
         solver=solver,
         verbose=verbose,
         groupby_dims=groupby_dims,
+        cluster_values=False,
     )
 
     # TODO: insert back the normalized bits?

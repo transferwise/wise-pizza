@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Tuple
 import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix
+from joblib import Parallel, delayed
 
 
 from .fitter import AverageFitter, Fitter, TimeFitterModel, TimeFitter
@@ -17,6 +18,7 @@ def tree_solver(
     fitter: Fitter,
     max_depth: Optional[int] = None,
     num_leaves: Optional[int] = None,
+    parallel_processes: int = 10,
 ):
     """
     Partition the data into segments using a greedy binary tree approach
@@ -38,6 +40,7 @@ def tree_solver(
         dims=dims,
         time_col=None if isinstance(fitter, AverageFitter) else "__time",
         max_depth=max_depth,
+        parallel_processes=parallel_processes,
     )
 
     build_tree(root=root, num_leaves=num_leaves, max_depth=max_depth)
@@ -85,6 +88,7 @@ class ModelNode:
         time_col: str = None,
         max_depth: Optional[int] = None,
         dim_split: Optional[Dict[str, List]] = None,
+        parallel_processes: int = 10,
     ):
         self.df = df.copy().sort_values(dims + fitter.groupby_dims)
         self.fitter = fitter
@@ -98,6 +102,7 @@ class ModelNode:
         self.model = None
         # For dimension splitting candidates, hardwired for now
         self.num_bins = 10
+        self.parallel_processes = parallel_processes
 
     @property
     def depth(self):
@@ -134,9 +139,9 @@ class ModelNode:
             else:
                 iter_dims = self.dims
 
-            for dim in iter_dims:
+            def error_improvement_for_dim(dim):
                 if len(self.df[dim].unique()) == 1:
-                    continue
+                    return float("inf"), (None, None)
 
                 elif len(self.df[dim].unique()) == 2:
                     vals = self.df[dim].unique()
@@ -150,7 +155,11 @@ class ModelNode:
                         partitions = kmeans_partition(
                             self.df, dim, self.fitter.groupby_dims
                         )
+                        if len(partitions) == 0:
+                            return float("inf"), (None, None)
 
+                best_error = float("inf")
+                candidates = (None, None)
                 for dim_values1, dim_values2 in partitions:
                     left = self.df[self.df[dim].isin(dim_values1)]
                     right = self.df[self.df[dim].isin(dim_values2)]
@@ -174,8 +183,17 @@ class ModelNode:
                     err = left_candidate.error + right_candidate.error
                     if err < best_error:
                         best_error = err
-                        self._error_improvement = self.error - best_error
-                        self._best_submodels = (left_candidate, right_candidate)
+                        candidates = (left_candidate, right_candidate)
+                return best_error, candidates
+
+            results = Parallel(n_jobs=self.parallel_processes)(
+                delayed(error_improvement_for_dim)(i) for i in iter_dims
+            )
+            for err, candidates in results:
+                if err < best_error:
+                    best_error = err
+                    self._best_submodels = candidates
+                    self._error_improvement = self.error - best_error
 
         return self._error_improvement
 

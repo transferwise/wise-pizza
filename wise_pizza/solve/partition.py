@@ -3,6 +3,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 
+
 from .weighted_quantiles import weighted_quantiles
 
 
@@ -73,8 +74,10 @@ def kmeans_partition(df: pd.DataFrame, dim: str, groupby_dims: List[str]):
         vector_dict[c] = (weights.loc[c], joint_mat[:, i])
 
     cluster1, cluster2 = weighted_kmeans_two_clusters(vector_dict)
-
-    return [(cluster1, cluster2)]
+    if cluster1 is None:
+        return []
+    else:
+        return [(cluster1, cluster2)]
 
 
 def weighted_kmeans_two_clusters(data_dict, tol=1e-4, max_iter=100, max_retries=10):
@@ -124,9 +127,7 @@ def weighted_kmeans_two_clusters(data_dict, tol=1e-4, max_iter=100, max_retries=
 
             centroids = new_centroids
 
-    raise ValueError(
-        "Failed to find a valid clustering with non-empty clusters after maximum retries."
-    )
+    return None, None
 
 
 def fill_gaps(x: np.ndarray, num_iter=50):
