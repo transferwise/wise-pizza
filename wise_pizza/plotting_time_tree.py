@@ -158,3 +158,7 @@ def simple_ts_plot(
             row=row_num,
             col=col_num,
         )
+    fig.update_layout(
+        xaxis=dict(autorange=True),
+        yaxis=dict(autorange=True)
+    )

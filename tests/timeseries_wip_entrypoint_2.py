@@ -16,17 +16,20 @@ print(data_dir)
 from wise_pizza import explain_timeseries
 
 df = pd.read_csv(
-    os.path.join(data_dir, "synth_time_data.csv")
+    os.path.join(data_dir, "volume_data_new.csv")
 )  # replace this variable with your data
 dims = [
-    "PRODUCT",
-    "REGION",
+    "CUSTOMER_TYPE",
+    "STRATEGIC_PRODUCT",
     "SOURCE_CURRENCY",
     "TARGET_CURRENCY",
+    "PRODUCT_USE_CASE",
+    "REGION",
+    "TRANS_VOL_BUCKET",
 ]  # dimensions to find segments
-totals = "VOLUME"  # value to analyze
-size = "ACTIVE_CUSTOMERS"  # number of objects
-time = "DATE"
+totals = "VOLUME_GBP"  # value to analyze
+size = "NUM_CUSTOMERS"  #'NUM_TRANSACTIONS'  # number of objects
+time = "ACTION_YM"
 sf = explain_timeseries(
     df=df,
     dims=dims,

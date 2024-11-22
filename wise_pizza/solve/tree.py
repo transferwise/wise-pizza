@@ -31,6 +31,7 @@ def tree_solver(
     """
 
     df = dim_df.copy().reset_index(drop=True)
+    df["totals"] -= df["total_adjustment"]
     df["__avg"] = df["totals"] / df["weights"]
     df["__avg"] = df["__avg"].fillna(df["__avg"].mean())
 
@@ -56,6 +57,10 @@ def tree_solver(
     re_df = pd.concat([leaf.df for leaf in leaves]).sort_values(
         dims + fitter.groupby_dims
     )
+    # Put back the averages over time by segment
+    re_df["prediction"] += re_df["total_adjustment"] / re_df["weights"]
+
+    # re_df["totals"] += re_df["total_adjustment"]
 
     if len(fitter.groupby_dims) == 2:  # Time series with weights
         re_df_w = re_df[re_df["chunk"] == "Weights"].copy()

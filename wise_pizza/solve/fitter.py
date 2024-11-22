@@ -48,7 +48,6 @@ def debug_plot(X, y, y_pred, w):
     plt.plot(X_agg["y_pred"] / X_agg["weights"], label="y_pred")
     plt.legend()
     plt.show()
-    print("yay!")
 
 
 class TimeFitterModel(ABC):

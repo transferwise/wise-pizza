@@ -143,6 +143,9 @@ class SliceFinder:
         group of segments from the same dimension with similar naive averages
 
         """
+        dim_df = dim_df.copy()
+        if groupby_dims is None:
+            groupby_dims = []
 
         assert solver.lower() in ["lasso", "tree", "omp", "lp"]
         min_segments, max_segments = clean_up_min_max(min_segments, max_segments)
@@ -160,18 +163,20 @@ class SliceFinder:
         assert np.sum(np.abs(totals[weights == 0])) == 0
 
         # Cast all dimension values to strings
-        dim_df = dim_df.astype(str)
+        for c in dim_df.columns:
+            if c not in groupby_dims + ["total_adjustment"]:
+                dim_df[c] = dim_df[c].astype(str)
 
         dims = list(dim_df.columns)
-        if groupby_dims is not None:
-            dims = [d for d in dims if d not in groupby_dims]
+        if groupby_dims:
+            dims = [d for d in dims if d not in groupby_dims + ["total_adjustment"]]
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
 
-        if groupby_dims is not None:
+        if groupby_dims:
             dim_df = pd.merge(dim_df, time_basis, on=groupby_dims)
             sort_dims = dims + groupby_dims
         else:

@@ -367,9 +367,7 @@ def explain_timeseries(
     total_name: str,
     time_name: str,
     size_name: Optional[str] = None,
-    min_segments: int = None,
-    max_segments: int = None,
-    min_depth: int = 1,
+    num_segments: int = None,
     max_depth: int = 2,
     solver: str = "tree",
     verbose: bool = False,
@@ -377,6 +375,7 @@ def explain_timeseries(
     fit_log_space: bool = False,
     fit_sizes: Optional[bool] = None,
     num_breaks: int = 2,
+    ignore_averages: bool = True,
     log_space_weight_sc: float = 0.5,
 ):
     assert (
@@ -450,16 +449,31 @@ def explain_timeseries(
         time_basis = (
             pd.concat([time_basis, re_basis], axis=0).fillna(0.0).reset_index(drop=True)
         )
-        print("yay!")
         groupby_dims = ["chunk", "__time"]
     else:
         groupby_dims = ["__time"]
 
     df2["_target"] = df2[total_name]
     df2["__time"] = df2[time_name]
-    df2["total_adjustment"] = 0.0
-    avg_df = 0.0
-    average = 0.0
+
+    # Adds the column of the time average over each dimension combination
+    if ignore_averages:
+        df2, avg_df = add_average_over_time(
+            df2,
+            dims=dims,
+            total_name=total_name,
+            size_name=size_name,
+            time_name="__time",
+            groupby_dims=groupby_dims,
+            cartesian=False,
+        )
+    else:
+        df2["total_adjustment"] = 0.0
+        avg_df = None
+
+    # The join in the above function could have messed up the ordering
+    df2 = df2.sort_values(by=dims + groupby_dims)
+    average = df2[total_name].sum() / df2[size_name].sum()
 
     sf = SliceFinder()
     sf.global_average = average
@@ -468,16 +482,14 @@ def explain_timeseries(
     sf.time_name = time_name
     sf.y_adj = df2["total_adjustment"].values
     sf.avg_df = avg_df
-    sf.time_values = df2[time_name].unique()
+    sf.time_values = df2["__time"].unique()
     sf.fit(
-        df2[dims + groupby_dims],
-        df2["_target"],
-        time_col=df2[time_name],
+        df2[dims + groupby_dims + ["total_adjustment"]],
+        df2[total_name],
+        time_col=df2["__time"],
         time_basis=time_basis,
         weights=df2[size_name],
-        min_segments=min_segments,
-        max_segments=max_segments,
-        min_depth=min_depth,
+        max_segments=num_segments,
         max_depth=max_depth,
         solver=solver,
         verbose=verbose,

@@ -90,36 +90,48 @@ def add_average_over_time(
     total_name: str,
     size_name: str,
     time_name: str,
+    groupby_dims: List[str] = None,
     cartesian: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    avgs = df[dims + [total_name, size_name]].groupby(dims, as_index=False).sum()
-    avgs["avg"] = avgs[total_name] / avgs[size_name]
-    if cartesian:
-        # make sure that the cartesian product of dimension combinations x time is present,
-        # without changing the totals
-        times = df[[time_name]].groupby(time_name, as_index=False).sum()
-        times["key"] = 1
-        avgs["key"] = 1
-        cartesian_df = pd.merge(avgs, times, on="key").drop(columns=["key"])
-        joined = pd.merge(
-            df,
-            cartesian_df[dims + [time_name]],
-            on=dims + [time_name],
-            how="right",
-        )
-        joined[size_name] = joined[size_name].fillna(
-            np.nanmean(joined[size_name].values)
-        )
-        joined[total_name] = joined[total_name].fillna(0.0)
-        df = joined
+    groupby_dims = groupby_dims or [time_name]
 
-    avgs = df[dims + [total_name, size_name]].groupby(dims, as_index=False).sum()
+    # get the average of the total over time
+    group_dims = dims + [c for c in groupby_dims if c != time_name]
+    avgs = (
+        df[group_dims + [total_name, size_name]]
+        .groupby(group_dims, as_index=False)
+        .sum()
+    )
+
     avgs["avg"] = avgs[total_name] / avgs[size_name]
-    joined = pd.merge(df, avgs[dims + ["avg"]], on=dims)
+    # if cartesian:
+    #     # make sure that the cartesian product of dimension combinations x time is present,
+    #     # without changing the totals
+    #     times = df[[time_name]].groupby(time_name, as_index=False).sum()
+    #     times["key"] = 1
+    #     avgs["key"] = 1
+    #     cartesian_df = pd.merge(avgs, times, on="key").drop(columns=["key"])
+    #     joined = pd.merge(
+    #         df,
+    #         cartesian_df[dims + [time_name]],
+    #         on=dims + [time_name],
+    #         how="right",
+    #     )
+    #     joined[size_name] = joined[size_name].fillna(
+    #         np.nanmean(joined[size_name].values)
+    #     )
+    #     joined[total_name] = joined[total_name].fillna(0.0)
+    #     df = joined
+
+    # avgs = df[dims + [total_name, size_name]].groupby(dims, as_index=False).sum()
+    # avgs["avg"] = avgs[total_name] / avgs[size_name]
+
+    joined = pd.merge(df, avgs[group_dims + ["avg"]], on=group_dims)
 
     joined["total_adjustment"] = joined[size_name] * joined["avg"]
-    out = joined[dims + [total_name, size_name, time_name, "total_adjustment"]]
-    tmp = out[dims + [total_name, "total_adjustment"]].groupby(dims).sum()
+
+    out = joined[group_dims + [total_name, size_name, time_name, "total_adjustment"]]
+    tmp = out[group_dims + [total_name, "total_adjustment"]].groupby(dims).sum()
     assert (tmp[total_name] - tmp["total_adjustment"]).abs().sum() < 1e-6 * df[
         total_name
     ].abs().max()
