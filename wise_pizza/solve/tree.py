@@ -34,6 +34,8 @@ def tree_solver(
     """
 
     df = dim_df.copy().reset_index(drop=True)
+    if "total_adjustment" not in df.columns:
+        df["total_adjustment"] = 0.0
     df["totals"] -= df["total_adjustment"]
     df["__avg"] = df["totals"] / df["weights"]
     df["__avg"] = df["__avg"].fillna(df["__avg"].mean())
