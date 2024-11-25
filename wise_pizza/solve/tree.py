@@ -18,7 +18,8 @@ def tree_solver(
     fitter: Fitter,
     max_depth: Optional[int] = None,
     num_leaves: Optional[int] = None,
-    parallel_processes: int = 10,
+    n_jobs: int = 10,
+    verbose: bool = False,
 ):
     """
     Partition the data into segments using a greedy binary tree approach
@@ -27,6 +28,8 @@ def tree_solver(
     :param fitter: A model to fit on the chunks
     :param max_depth: max depth of the tree
     :param num_leaves: num leaves to generate
+    :param n_jobs: number of parallel jobs
+    :param verbose: print progress
     :return: Segment description, column definitions, and cluster names
     """
 
@@ -41,10 +44,10 @@ def tree_solver(
         dims=dims,
         time_col=None if isinstance(fitter, AverageFitter) else "__time",
         max_depth=max_depth,
-        parallel_processes=parallel_processes,
+        n_jobs=n_jobs,
     )
 
-    build_tree(root=root, num_leaves=num_leaves, max_depth=max_depth)
+    build_tree(root=root, num_leaves=num_leaves, max_depth=max_depth, verbose=verbose)
 
     leaves = get_leaves(root)
 
@@ -93,7 +96,7 @@ class ModelNode:
         time_col: str = None,
         max_depth: Optional[int] = None,
         dim_split: Optional[Dict[str, List]] = None,
-        parallel_processes: int = 10,
+        n_jobs: int = 10,
     ):
         self.df = df.copy().sort_values(dims + fitter.groupby_dims)
         self.fitter = fitter
@@ -107,7 +110,7 @@ class ModelNode:
         self.model = None
         # For dimension splitting candidates, hardwired for now
         self.num_bins = 10
-        self.parallel_processes = parallel_processes
+        self.parallel_processes = n_jobs
 
     @property
     def depth(self):
@@ -219,15 +222,23 @@ def get_best_subtree_result(
             return node2
 
 
-def build_tree(root: ModelNode, num_leaves: int, max_depth: Optional[int] = 1000):
+def build_tree(
+    root: ModelNode,
+    num_leaves: int,
+    max_depth: Optional[int] = 1000,
+    verbose: bool = False,
+):
     for i in range(num_leaves - 1):
-        print(f"Adding node {i+1}...")
+        if verbose:
+            print(f"Adding node {i+1}...")
         best_node = get_best_subtree_result(root, max_depth)
         if best_node.error_improvement > 0:
             best_node.children = best_node._best_submodels
-            print("Done!")
+            if verbose:
+                print("Done!")
         else:
-            print("No more improvement, stopping")
+            if verbose:
+                print("No more improvement, stopping")
             break
 
 

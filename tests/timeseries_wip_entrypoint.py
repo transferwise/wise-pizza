@@ -30,7 +30,7 @@ time = "DATE"
 sf = explain_timeseries(
     df=df,
     dims=dims,
-    max_segments=7,
+    num_segments=7,
     max_depth=2,
     total_name=totals,
     size_name=size,
@@ -38,6 +38,7 @@ sf = explain_timeseries(
     verbose=False,
     solver="tree",
     fit_sizes=True,
+    num_breaks=100,
 )
 sf.plot(plot_is_static=False, height=1500, width=1000, average_name="VPC")
 print(sf.summary())

@@ -374,10 +374,30 @@ def explain_timeseries(
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
     fit_sizes: Optional[bool] = None,
-    num_breaks: int = 2,
+    num_breaks: int = 3,
+    n_jobs: int = 10,
     ignore_averages: bool = True,
     log_space_weight_sc: float = 0.5,
 ):
+    """
+    Split a time series panel dataset into segments that are as different as possible
+    :param df:  A pandas DataFrame with the time series data
+    :param dims: Discrete dimensions to segment by
+    :param total_name: Name of the column containing totals
+    :param time_name: Name of the column containing the time values
+    :param num_segments: Number of segments to find
+    :param size_name: (Optional) Name of the column containing the size of the segment
+    :param max_depth: (Optional, defaults to 2) Maximum number of dimensions to constrain per segment
+    :param fit_sizes: (Optional) Whether to fit the sizes of the segments, or just the averages
+    :param n_jobs: (Optional, defaults to 10) Number of jobs to run in parallel when finding segments
+    :param num_breaks: (Optional, defaults to 3) Number of breaks in stylized time series used for comparing segments
+    :param ignore_averages: If set to True (recommended), the level (across time) of each segment is ignored when calculating similarity
+    :param time_basis: A DataFrame with the time basis to use. Only use if you know what you're doing.
+    :param solver: (Optional) The solver to use, currently only "tree" is supported
+    :param fit_log_space: Do not use
+    :param log_space_weight_sc: Do not use
+    :return:
+    """
     assert (
         solver == "tree"
     ), "Only the tree solver is supported for time series at the moment"
@@ -495,6 +515,7 @@ def explain_timeseries(
         verbose=verbose,
         groupby_dims=groupby_dims,
         cluster_values=False,
+        n_jobs=n_jobs,
     )
 
     # TODO: insert back the normalized bits?

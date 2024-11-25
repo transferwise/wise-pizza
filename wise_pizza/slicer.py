@@ -124,6 +124,7 @@ class SliceFinder:
         constrain_signs: bool = True,
         cluster_values: bool = True,
         groupby_dims: Optional[List[str]] = None,
+        n_jobs: int = 1,
     ):
         """
         Function to fit slicer and find segments
@@ -225,6 +226,8 @@ class SliceFinder:
                     num_leaves=max_segments,
                     max_depth=max_depth,
                     fitter=AverageFitter(),
+                    n_jobs=n_jobs,
+                    verbose=verbose,
                 )
 
                 Xw = csc_matrix(diags(self.weights) @ self.X)
@@ -261,6 +264,8 @@ class SliceFinder:
                     fitter=fitter,
                     num_leaves=max_segments,
                     max_depth=max_depth,
+                    n_jobs=n_jobs,
+                    verbose=verbose,
                 )
             self.nonzeros = np.array(range(self.X.shape[1]))
 

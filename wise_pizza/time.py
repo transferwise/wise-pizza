@@ -45,6 +45,7 @@ def prune_time_basis(
     dtrend_cols = [t for t in time_basis.columns if "dtrend" in t]
     chosen_cols = []
     # from all the possible kinks, choose evenly spaced num_breaks ones
+    num_breaks = min(num_breaks, len(dtrend_cols) - 1)
     for i in range(1, num_breaks + 1):
         chosen_cols.append(dtrend_cols[int(i * len(dtrend_cols) / (num_breaks + 1))])
     pre_basis = time_basis[["Intercept", "Slope"] + chosen_cols].copy()
