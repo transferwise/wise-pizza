@@ -367,18 +367,37 @@ def explain_timeseries(
     total_name: str,
     time_name: str,
     size_name: Optional[str] = None,
-    min_segments: int = None,
-    max_segments: int = None,
-    min_depth: int = 1,
+    num_segments: int = None,
     max_depth: int = 2,
     solver: str = "tree",
     verbose: bool = False,
     time_basis: Optional[pd.DataFrame] = None,
     fit_log_space: bool = False,
     fit_sizes: Optional[bool] = None,
-    num_breaks: int = 2,
+    num_breaks: int = 3,
+    n_jobs: int = 10,
+    ignore_averages: bool = True,
     log_space_weight_sc: float = 0.5,
 ):
+    """
+    Split a time series panel dataset into segments that are as different as possible
+    :param df:  A pandas DataFrame with the time series data
+    :param dims: Discrete dimensions to segment by
+    :param total_name: Name of the column containing totals
+    :param time_name: Name of the column containing the time values
+    :param num_segments: Number of segments to find
+    :param size_name: (Optional) Name of the column containing the size of the segment
+    :param max_depth: (Optional, defaults to 2) Maximum number of dimensions to constrain per segment
+    :param fit_sizes: (Optional) Whether to fit the sizes of the segments, or just the averages
+    :param n_jobs: (Optional, defaults to 10) Number of jobs to run in parallel when finding segments
+    :param num_breaks: (Optional, defaults to 3) Number of breaks in stylized time series used for comparing segments
+    :param ignore_averages: If set to True (recommended), the level (across time) of each segment is ignored when calculating similarity
+    :param time_basis: A DataFrame with the time basis to use. Only use if you know what you're doing.
+    :param solver: (Optional) The solver to use, currently only "tree" is supported
+    :param fit_log_space: Do not use
+    :param log_space_weight_sc: Do not use
+    :return:
+    """
     assert (
         solver == "tree"
     ), "Only the tree solver is supported for time series at the moment"
@@ -450,16 +469,31 @@ def explain_timeseries(
         time_basis = (
             pd.concat([time_basis, re_basis], axis=0).fillna(0.0).reset_index(drop=True)
         )
-        print("yay!")
         groupby_dims = ["chunk", "__time"]
     else:
         groupby_dims = ["__time"]
 
     df2["_target"] = df2[total_name]
     df2["__time"] = df2[time_name]
-    df2["total_adjustment"] = 0.0
-    avg_df = 0.0
-    average = 0.0
+
+    # Adds the column of the time average over each dimension combination
+    if ignore_averages:
+        df2, avg_df = add_average_over_time(
+            df2,
+            dims=dims,
+            total_name=total_name,
+            size_name=size_name,
+            time_name="__time",
+            groupby_dims=groupby_dims,
+            cartesian=False,
+        )
+    else:
+        df2["total_adjustment"] = 0.0
+        avg_df = None
+
+    # The join in the above function could have messed up the ordering
+    df2 = df2.sort_values(by=dims + groupby_dims)
+    average = df2[total_name].sum() / df2[size_name].sum()
 
     sf = SliceFinder()
     sf.global_average = average
@@ -468,20 +502,20 @@ def explain_timeseries(
     sf.time_name = time_name
     sf.y_adj = df2["total_adjustment"].values
     sf.avg_df = avg_df
-    sf.time_values = df2[time_name].unique()
+    sf.time_values = df2["__time"].unique()
     sf.fit(
-        df2[dims + groupby_dims],
-        df2["_target"],
-        time_col=df2[time_name],
+        df2[dims + groupby_dims + ["total_adjustment"]],
+        df2[total_name],
+        time_col=df2["__time"],
         time_basis=time_basis,
         weights=df2[size_name],
-        min_segments=min_segments,
-        max_segments=max_segments,
-        min_depth=min_depth,
+        max_segments=num_segments,
         max_depth=max_depth,
         solver=solver,
         verbose=verbose,
         groupby_dims=groupby_dims,
+        cluster_values=False,
+        n_jobs=n_jobs,
     )
 
     # TODO: insert back the normalized bits?

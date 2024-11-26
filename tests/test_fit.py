@@ -139,7 +139,7 @@ def test_time_series_tree_solver(fit_sizes: bool):
     sf = explain_timeseries(
         df=data.data,
         dims=data.dimensions,
-        max_segments=7,
+        num_segments=7,
         max_depth=2,
         total_name=data.segment_total,
         size_name=data.segment_size,

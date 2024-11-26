@@ -75,7 +75,7 @@ def preprocess_for_ts_plot(
 ) -> List[List[PlotData]]:
     out = []
     for row, s in enumerate(sf.segments):
-        print(row, s)
+        # print(row, s)
         this_df = pd.DataFrame(
             {
                 "time": sf.time,
@@ -158,3 +158,4 @@ def simple_ts_plot(
             row=row_num,
             col=col_num,
         )
+    fig.update_layout(xaxis=dict(autorange=True), yaxis=dict(autorange=True))

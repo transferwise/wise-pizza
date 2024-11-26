@@ -27,7 +27,7 @@ def _summary(obj) -> str:
             {
                 k: v
                 for k, v in s.items()
-                if k in ["segment", "total", "seg_size", "naive_avg"]
+                if k in ["segment", "total", "seg_size", "naive_avg", "impact"]
             }
             for s in obj.segments
         ],
@@ -124,6 +124,7 @@ class SliceFinder:
         constrain_signs: bool = True,
         cluster_values: bool = True,
         groupby_dims: Optional[List[str]] = None,
+        n_jobs: int = 1,
     ):
         """
         Function to fit slicer and find segments
@@ -143,6 +144,9 @@ class SliceFinder:
         group of segments from the same dimension with similar naive averages
 
         """
+        dim_df = dim_df.copy()
+        if groupby_dims is None:
+            groupby_dims = []
 
         assert solver.lower() in ["lasso", "tree", "omp", "lp"]
         min_segments, max_segments = clean_up_min_max(min_segments, max_segments)
@@ -160,18 +164,20 @@ class SliceFinder:
         assert np.sum(np.abs(totals[weights == 0])) == 0
 
         # Cast all dimension values to strings
-        dim_df = dim_df.astype(str)
+        for c in dim_df.columns:
+            if c not in groupby_dims + ["total_adjustment"]:
+                dim_df[c] = dim_df[c].astype(str)
 
         dims = list(dim_df.columns)
-        if groupby_dims is not None:
-            dims = [d for d in dims if d not in groupby_dims]
+        if groupby_dims:
+            dims = [d for d in dims if d not in groupby_dims + ["total_adjustment"]]
         # sort the dataframe by dimension values,
         # making sure the other vectors stay aligned
         dim_df = dim_df.reset_index(drop=True)
         dim_df["totals"] = totals
         dim_df["weights"] = weights
 
-        if groupby_dims is not None:
+        if groupby_dims:
             dim_df = pd.merge(dim_df, time_basis, on=groupby_dims)
             sort_dims = dims + groupby_dims
         else:
@@ -220,6 +226,8 @@ class SliceFinder:
                     num_leaves=max_segments,
                     max_depth=max_depth,
                     fitter=AverageFitter(),
+                    n_jobs=n_jobs,
+                    verbose=verbose,
                 )
 
                 Xw = csc_matrix(diags(self.weights) @ self.X)
@@ -256,6 +264,8 @@ class SliceFinder:
                     fitter=fitter,
                     num_leaves=max_segments,
                     max_depth=max_depth,
+                    n_jobs=n_jobs,
+                    verbose=verbose,
                 )
             self.nonzeros = np.array(range(self.X.shape[1]))
 
@@ -420,7 +430,8 @@ class SliceFinder:
         relevant_clusters = {}
         for s in self.segments:
             for c in s["segment"].values():
-                if c in self.cluster_names:
+                if c in self.cluster_names and ";" not in c:
+                    # Then cluster names containing ; are snumerations, don't need explanation
                     relevant_clusters[c] = self.cluster_names[c].replace("@@", ", ")
         return relevant_clusters
 

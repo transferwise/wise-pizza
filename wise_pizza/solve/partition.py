@@ -3,6 +3,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 
+
 from .weighted_quantiles import weighted_quantiles
 
 
@@ -41,9 +42,15 @@ def target_encoding_partitions(df: pd.DataFrame, dim: str, num_bins: int):
     return partitions
 
 
-def kmeans_partition(df: pd.DataFrame, dim: str, groupby_dims: List[str]):
+def kmeans_partition(
+    df: pd.DataFrame,
+    dim: str,
+    groupby_dims: List[str],
+    normalize_averages: bool = False,
+):
     assert len(df[dim].unique()) >= 3
     # Get split candidates
+    # Get time profiles split by the dimension we are evaluating
     agg_df = df.groupby([dim] + groupby_dims, as_index=False).sum()
     agg_df["__avg"] = agg_df["totals"] / agg_df["weights"]
     pivot_df = agg_df.pivot(
@@ -56,16 +63,31 @@ def kmeans_partition(df: pd.DataFrame, dim: str, groupby_dims: List[str]):
         for chunk in ["Average", "Weights"]:
             this_df = pivot_df[pivot_df["chunk"] == chunk]
             nice_values = fill_gaps(this_df[value_cols].values)
-            if chunk == "Weights":
-                nice_values = (
-                    np.mean(nice_mats["Average"])
-                    * nice_values
-                    / np.sum(nice_values, axis=0, keepdims=True)
+
+            if normalize_averages:
+                # Normalize both subsegments separately: weights and averages
+                nice_values /= (
+                    np.linalg.norm(nice_values, ord=2, axis=0, keepdims=True) + 1e-6
                 )
+            else:
+                if chunk == "Weights":
+                    nice_values = (
+                        np.mean(nice_mats["Average"])
+                        * nice_values
+                        / (
+                            np.linalg.norm(nice_values, ord=2, axis=0, keepdims=True)
+                            + 1e-6
+                        )
+                    )
             nice_mats[chunk] = nice_values
         joint_mat = np.concatenate([nice_mats["Average"], nice_mats["Weights"]], axis=0)
     else:
-        joint_mat = fill_gaps(pivot_df[value_cols].values)
+        nice_values = fill_gaps(pivot_df[value_cols].values)
+        if normalize_averages:
+            nice_values /= (
+                np.linalg.norm(nice_values, ord=2, axis=0, keepdims=True) + 1e-6
+            )
+        joint_mat = nice_values
 
     weights = pivot_df[value_cols].T.sum(axis=1)
     vector_dict = {}
@@ -73,8 +95,10 @@ def kmeans_partition(df: pd.DataFrame, dim: str, groupby_dims: List[str]):
         vector_dict[c] = (weights.loc[c], joint_mat[:, i])
 
     cluster1, cluster2 = weighted_kmeans_two_clusters(vector_dict)
-
-    return [(cluster1, cluster2)]
+    if cluster1 is None:
+        return []
+    else:
+        return [(cluster1, cluster2)]
 
 
 def weighted_kmeans_two_clusters(data_dict, tol=1e-4, max_iter=100, max_retries=10):
@@ -106,12 +130,20 @@ def weighted_kmeans_two_clusters(data_dict, tol=1e-4, max_iter=100, max_retries=
                 break
 
             # Update centroids with weighted averages
-            new_centroids = np.array(
-                [
-                    np.average(data[labels == i], axis=0, weights=weights[labels == i])
-                    for i in range(2)
-                ]
-            )
+            try:
+                new_centroids = np.array(
+                    [
+                        np.average(
+                            data[labels == i], axis=0, weights=weights[labels == i]
+                        )
+                        for i in range(2)
+                    ]
+                )
+            except ZeroDivisionError:
+                print(
+                    f"Zero division error detected on retry {retry + 1}, reinitializing centroids."
+                )
+                break
 
             # Check for convergence
             if np.linalg.norm(new_centroids - centroids) < tol:
@@ -124,9 +156,7 @@ def weighted_kmeans_two_clusters(data_dict, tol=1e-4, max_iter=100, max_retries=
 
             centroids = new_centroids
 
-    raise ValueError(
-        "Failed to find a valid clustering with non-empty clusters after maximum retries."
-    )
+    return None, None
 
 
 def fill_gaps(x: np.ndarray, num_iter=50):
@@ -139,7 +169,7 @@ def fill_gaps(x: np.ndarray, num_iter=50):
         nice_marg = interpolate_and_extrapolate(marg)
         tile_marg = np.tile(nice_marg, (x.shape[1], 1)).T
         tile_marg[nans] = np.nan
-        reg = np.nanmedian(x) * 1e-6
+        reg = np.nanmedian(x) * 1e-6 + 1e-6
         coeffs = (np.nansum(x * tile_marg, axis=0) + reg) / (
             np.nansum(tile_marg * tile_marg, axis=0) + reg
         )

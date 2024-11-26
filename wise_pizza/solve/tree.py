@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Tuple
 import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix
+from joblib import Parallel, delayed
 
 
 from .fitter import AverageFitter, Fitter, TimeFitterModel, TimeFitter
@@ -17,6 +18,8 @@ def tree_solver(
     fitter: Fitter,
     max_depth: Optional[int] = None,
     num_leaves: Optional[int] = None,
+    n_jobs: int = 10,
+    verbose: bool = False,
 ):
     """
     Partition the data into segments using a greedy binary tree approach
@@ -25,10 +28,15 @@ def tree_solver(
     :param fitter: A model to fit on the chunks
     :param max_depth: max depth of the tree
     :param num_leaves: num leaves to generate
+    :param n_jobs: number of parallel jobs
+    :param verbose: print progress
     :return: Segment description, column definitions, and cluster names
     """
 
     df = dim_df.copy().reset_index(drop=True)
+    if "total_adjustment" not in df.columns:
+        df["total_adjustment"] = 0.0
+    df["totals"] -= df["total_adjustment"]
     df["__avg"] = df["totals"] / df["weights"]
     df["__avg"] = df["__avg"].fillna(df["__avg"].mean())
 
@@ -38,9 +46,10 @@ def tree_solver(
         dims=dims,
         time_col=None if isinstance(fitter, AverageFitter) else "__time",
         max_depth=max_depth,
+        n_jobs=n_jobs,
     )
 
-    build_tree(root=root, num_leaves=num_leaves, max_depth=max_depth)
+    build_tree(root=root, num_leaves=num_leaves, max_depth=max_depth, verbose=verbose)
 
     leaves = get_leaves(root)
 
@@ -53,6 +62,10 @@ def tree_solver(
     re_df = pd.concat([leaf.df for leaf in leaves]).sort_values(
         dims + fitter.groupby_dims
     )
+    # Put back the averages over time by segment
+    re_df["prediction"] += re_df["total_adjustment"] / re_df["weights"]
+
+    # re_df["totals"] += re_df["total_adjustment"]
 
     if len(fitter.groupby_dims) == 2:  # Time series with weights
         re_df_w = re_df[re_df["chunk"] == "Weights"].copy()
@@ -85,6 +98,7 @@ class ModelNode:
         time_col: str = None,
         max_depth: Optional[int] = None,
         dim_split: Optional[Dict[str, List]] = None,
+        n_jobs: int = 10,
     ):
         self.df = df.copy().sort_values(dims + fitter.groupby_dims)
         self.fitter = fitter
@@ -98,6 +112,7 @@ class ModelNode:
         self.model = None
         # For dimension splitting candidates, hardwired for now
         self.num_bins = 10
+        self.parallel_processes = n_jobs
 
     @property
     def depth(self):
@@ -134,9 +149,9 @@ class ModelNode:
             else:
                 iter_dims = self.dims
 
-            for dim in iter_dims:
+            def error_improvement_for_dim(dim):
                 if len(self.df[dim].unique()) == 1:
-                    continue
+                    return float("inf"), (None, None)
 
                 elif len(self.df[dim].unique()) == 2:
                     vals = self.df[dim].unique()
@@ -150,7 +165,11 @@ class ModelNode:
                         partitions = kmeans_partition(
                             self.df, dim, self.fitter.groupby_dims
                         )
+                        if len(partitions) == 0:
+                            return float("inf"), (None, None)
 
+                best_error = float("inf")
+                candidates = (None, None)
                 for dim_values1, dim_values2 in partitions:
                     left = self.df[self.df[dim].isin(dim_values1)]
                     right = self.df[self.df[dim].isin(dim_values2)]
@@ -174,8 +193,17 @@ class ModelNode:
                     err = left_candidate.error + right_candidate.error
                     if err < best_error:
                         best_error = err
-                        self._error_improvement = self.error - best_error
-                        self._best_submodels = (left_candidate, right_candidate)
+                        candidates = (left_candidate, right_candidate)
+                return best_error, candidates
+
+            results = Parallel(n_jobs=self.parallel_processes)(
+                delayed(error_improvement_for_dim)(i) for i in iter_dims
+            )
+            for err, candidates in results:
+                if err < best_error:
+                    best_error = err
+                    self._best_submodels = candidates
+                    self._error_improvement = self.error - best_error
 
         return self._error_improvement
 
@@ -196,15 +224,23 @@ def get_best_subtree_result(
             return node2
 
 
-def build_tree(root: ModelNode, num_leaves: int, max_depth: Optional[int] = 1000):
+def build_tree(
+    root: ModelNode,
+    num_leaves: int,
+    max_depth: Optional[int] = 1000,
+    verbose: bool = False,
+):
     for i in range(num_leaves - 1):
-        print(f"Adding node {i+1}...")
+        if verbose:
+            print(f"Adding node {i+1}...")
         best_node = get_best_subtree_result(root, max_depth)
         if best_node.error_improvement > 0:
             best_node.children = best_node._best_submodels
-            print("Done!")
+            if verbose:
+                print("Done!")
         else:
-            print("No more improvement, stopping")
+            if verbose:
+                print("No more improvement, stopping")
             break
 
 
