@@ -34,6 +34,7 @@ def explain_changes_in_average(
     dims: List[str],
     total_name: str,
     size_name: str,
+    average_name: Optional[str] = None,
     min_segments: Optional[int] = None,
     max_segments: int = None,
     min_depth: int = 1,
@@ -124,6 +125,9 @@ def explain_changes_in_average(
 
     # And might want to relabel some plots?
     sf.task = "changes in average"
+    sf.size_name = size_name
+    sf.total_name = total_name
+    sf.average_name = average_name
     return sf
 
 
@@ -133,6 +137,7 @@ def explain_changes_in_totals(
     dims: List[str],
     total_name: str,
     size_name: str,
+    average_name: Optional[str] = None,
     min_segments: Optional[int] = None,
     max_segments: int = None,
     min_depth: int = 1,
@@ -274,6 +279,9 @@ def explain_changes_in_totals(
             return_fig=return_fig,
         )
         sf.task = "changes in totals"
+        sf.size_name = size_name
+        sf.total_name = total_name
+        sf.average_name = average_name
         return sf
 
 
@@ -282,6 +290,7 @@ def explain_levels(
     dims: List[str],
     total_name: str,
     size_name: Optional[str] = None,
+    average_name: Optional[str] = None,
     min_segments: int = None,
     max_segments: int = None,
     min_depth: int = 1,
@@ -358,6 +367,9 @@ def explain_levels(
         cluster_value_width=cluster_value_width,
     )
     sf.task = "levels"
+    sf.size_name = size_name
+    sf.total_name = total_name
+    sf.average_name = average_name
     return sf
 
 
@@ -367,6 +379,7 @@ def explain_timeseries(
     total_name: str,
     time_name: str,
     size_name: Optional[str] = None,
+    average_name: Optional[str] = None,
     num_segments: int = None,
     max_depth: int = 2,
     solver: str = "tree",
@@ -557,4 +570,7 @@ def explain_timeseries(
         average_name=average_name,
     )
     sf.task = "time"
+    sf.size_name = size_name
+    sf.total_name = total_name
+    sf.average_name = average_name
     return sf

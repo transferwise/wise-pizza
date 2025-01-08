@@ -98,7 +98,8 @@ class SliceFinder:
         )
 
         # do pre-filter recursively
-        for this_X, these_col_defs in basis_iter:
+        for i in basis_iter:
+            this_X, these_col_defs = i
             if this_X is not None:
                 X_out, col_defs_out = sel(this_X, these_col_defs)
 
@@ -535,6 +536,40 @@ class SliceFinder:
         out = SliceFinderPredictFacade(self, new_dim_df, segments)
         return out
 
+    @property
+    def nice_summary(self, average_name: str | None = None):
+        return nice_summary(
+            self.summary(), self.total_name, self.size_name, self.average_name
+        )
+
+    @property
+    def markdown_summary(self):
+        return markdown_summary(self.nice_summary)
+
+    def descriptive_prompt(
+        self, prompt_template: Optional["BasePromptTemplate"] = None
+    ):
+        if prompt_template is not None:
+            return prompt_template.format(
+                total_name=self.total_name,
+                size_name=self.size_name,
+                average_name=self.average_name,
+                summary=self.markdown_summary,
+            )
+        else:
+            return f"""
+You are a helpful research assistant. You are given a summary analysis of a dataset, 
+highlighting the key segments that drove the change in total volume. 
+The logic behind choosing those segments is the following: a segment's impact equals the segment's size
+({self.size_name}) multiplied by the difference between the segment' average ({self.average_name}) and 
+the average of the whole dataset, that describes the change in the total volume ({self.total_name}) due 
+to the segment's average deviation from the dataset's average. We look for the segments that have the
+larges absolute impact on the total volume. 
+
+Please summarize that data BRIEFLY in a few sentences. 
+Here is the summary:
+{self.markdown_summary}"""
+
 
 def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
     """
@@ -555,6 +590,42 @@ def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
 
     assert np.abs(dummy).sum() > 0
     return dummy, Xi
+
+
+def nice_summary(
+    x: str,
+    total_name: str,
+    size_name: Optional[str] = None,
+    average_name: Optional[str] = None,
+):
+    x = json.loads(x)
+
+    df = pd.DataFrame(x["segments"]).rename(
+        columns={"seg_size": size_name, "total": total_name}
+    )
+    df["segment"] = df["segment"].apply(
+        lambda x: str(x).replace("'", "").replace("{", "").replace("}", "")
+    )
+    if average_name is not None:
+        df = df.rename(columns={"naive_avg": average_name})
+
+    # TODO: more flexible formatting
+    for col in df.columns:
+        if col != "segment":
+            df[col] = df[col].astype(int)
+    out = {"summary": df, "clusters": x["relevant_clusters"]}
+    return out
+
+
+def markdown_summary(x: dict):
+    table = x["summary"].to_markdown(index=False)
+
+    out = f"""Key segment summary: 
+{table}"""
+
+    if clusters := x["clusters"]:
+        out += f"\n\nDefinitions of clusters: {clusters}"
+    return out
 
 
 class SlicerPair:
