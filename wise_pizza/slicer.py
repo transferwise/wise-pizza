@@ -537,7 +537,7 @@ class SliceFinder:
         return out
 
     @property
-    def nice_summary(self, average_name: str | None = None):
+    def nice_summary(self):
         return nice_summary(
             self.summary(), self.total_name, self.size_name, self.average_name
         )
