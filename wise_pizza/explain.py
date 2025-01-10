@@ -73,6 +73,7 @@ def explain_changes_in_average(
     @param verbose: If set to a truish value, lots of debug info is printed to console
     @return: A fitted object
     """
+
     df1 = df1.copy()
     df2 = df2.copy()
 
@@ -111,6 +112,9 @@ def explain_changes_in_average(
         cluster_values=cluster_values,
         verbose=verbose,
     )
+
+    if hasattr(df1, "attrs"):
+        sf.data_attrs = df1.attrs
 
     if hasattr(sf, "pre_total"):
         sf.pre_total = avg1
@@ -216,6 +220,8 @@ def explain_changes_in_totals(
             cluster_values=cluster_values,
             verbose=verbose,
         )
+        if hasattr(df1, "attrs"):
+            sf_size.data_attrs = df1.attrs
 
         sf_avg = explain_levels(
             df=df_avg.data,
@@ -231,6 +237,9 @@ def explain_changes_in_totals(
             cluster_values=cluster_values,
             verbose=verbose,
         )
+
+        if hasattr(df1, "attrs"):
+            sf_avg.data_attrs = df1.attrs
 
         sf_size.final_size = final_size
         sf_avg.final_size = final_size
@@ -282,6 +291,8 @@ def explain_changes_in_totals(
         sf.size_name = size_name
         sf.total_name = total_name
         sf.average_name = average_name
+        if hasattr(df1, "attrs"):
+            sf.data_attrs = df1.attrs
         return sf
 
 
@@ -352,6 +363,9 @@ def explain_levels(
         cluster_values=cluster_values,
     )
 
+    if hasattr(df, "attrs"):
+        sf.data_attrs = df.attrs
+
     for s in sf.segments:
         s["naive_avg"] += average
         s["total"] += average * s["seg_size"]
@@ -414,6 +428,7 @@ def explain_timeseries(
     assert (
         solver == "tree"
     ), "Only the tree solver is supported for time series at the moment"
+    attrs = getattr(df, "attrs", None)
     df = copy.copy(df)
 
     # replace NaN values in numeric columns with zeros
@@ -530,6 +545,9 @@ def explain_timeseries(
         cluster_values=False,
         n_jobs=n_jobs,
     )
+
+    if hasattr(df, "attrs"):
+        sf.data_attrs = attrs
 
     # TODO: insert back the normalized bits?
     for s in sf.segments:

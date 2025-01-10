@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix, diags
 
+from wise_pizza.dataframe_with_metadata import DataFrameWithMetadata
 from wise_pizza.solve.find_alpha import find_alpha
-from wise_pizza.utils import clean_up_min_max
+from wise_pizza.utils import clean_up_min_max, fill_string_na
 from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import make_clusters
 from wise_pizza.preselect import HeuristicSelector
@@ -27,7 +28,8 @@ def _summary(obj) -> str:
             {
                 k: v
                 for k, v in s.items()
-                if k in ["segment", "total", "seg_size", "naive_avg", "impact"]
+                if k
+                in ["segment", "total", "seg_size", "naive_avg", "impact", "avg_impact"]
             }
             for s in obj.segments
         ],
@@ -538,8 +540,13 @@ class SliceFinder:
 
     @property
     def nice_summary(self):
+
         return nice_summary(
-            self.summary(), self.total_name, self.size_name, self.average_name
+            self.summary(),
+            self.total_name,
+            self.size_name,
+            self.average_name,
+            self.data_attrs if hasattr(self, "data_attrs") else None,
         )
 
     @property
@@ -597,35 +604,64 @@ def nice_summary(
     total_name: str,
     size_name: Optional[str] = None,
     average_name: Optional[str] = None,
-):
+    attrs: Optional[Dict[str, str]] = None,
+) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
     x = json.loads(x)
+    for xx in x["segments"]:
+        xx.update(xx["segment"])
 
-    df = pd.DataFrame(x["segments"]).rename(
-        columns={"seg_size": size_name, "total": total_name}
-    )
-    df["segment"] = df["segment"].apply(
-        lambda x: str(x).replace("'", "").replace("{", "").replace("}", "")
-    )
-    if average_name is not None:
-        df = df.rename(columns={"naive_avg": average_name})
+    df = pd.DataFrame(x["segments"])
 
-    # TODO: more flexible formatting
-    for col in df.columns:
-        if col != "segment":
-            df[col] = df[col].astype(int)
-    out = {"summary": df, "clusters": x["relevant_clusters"]}
+    # These columns are pretty much self-explanatory, don't need descriptions
+
+    df = fill_string_na(df, "All")
+    df = df[[c for c in df.columns if c != "segment"] + ["segment"]]
+
+    if not average_name:
+        average_name = "average " + total_name.replace("total", "").replace(
+            "Total", ""
+        ).replace("TOTAL", "").replace("  ", " ")
+
+    df.rename(
+        columns={
+            "seg_size": size_name + " of segment",
+            "total": total_name + " in segment",
+            "impact": "Segment impact on overall total",
+            "avg_impact": f"Segment impact on overall {average_name}",
+            "naive_avg": average_name + " over segment",
+        },
+        inplace=True,
+    )
+
+    if attrs and "column_descriptions" in attrs:
+        column_desc = {
+            k: v for k, v in attrs["column_descriptions"].items() if k in df.columns
+        }
+
+        df = DataFrameWithMetadata(df, column_descriptions=column_desc)
+
+    out = df
+
+    # TODO: cast cluster definitions to dataframe too
+    if "relevant_clusters" in x and x["relevant_clusters"]:
+        out = {"summary": df, "clusters": x["relevant_clusters"]}
+
     return out
 
 
-def markdown_summary(x: dict):
-    table = x["summary"].to_markdown(index=False)
-
-    out = f"""Key segment summary: 
-{table}"""
-
-    if clusters := x["clusters"]:
-        out += f"\n\nDefinitions of clusters: {clusters}"
-    return out
+def markdown_summary(x: Union[dict, pd.DataFrame]):
+    if isinstance(x, pd.DataFrame):
+        return x.to_markdown(index=False)
+    elif isinstance(x, dict):
+        table = x["summary"].to_markdown(index=False)
+        if "clusters" in x and x["clusters"]:
+            clusters = x["clusters"]
+            table += "\n\nDefinitions of clusters: \n"
+            for k, v in clusters.items():
+                table += f"\n{k}: {v}"
+        return table
+    else:
+        raise ValueError("Invalid input, expected either a pd.DataFrame or a dict")
 
 
 class SlicerPair:
