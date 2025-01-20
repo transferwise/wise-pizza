@@ -651,9 +651,11 @@ def nice_summary(
 
 def markdown_summary(x: Union[dict, pd.DataFrame]):
     if isinstance(x, pd.DataFrame):
+        x = x.drop(columns="segment")
         return x.to_markdown(index=False)
     elif isinstance(x, dict):
-        table = x["summary"].to_markdown(index=False)
+        xx = x["summary"].drop(columns="segment")
+        table = xx.to_markdown(index=False)
         if "clusters" in x and x["clusters"]:
             clusters = x["clusters"]
             table += "\n\nDefinitions of clusters: \n"
