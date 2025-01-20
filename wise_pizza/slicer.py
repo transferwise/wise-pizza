@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csc_matrix, diags
 
+from wise_pizza.dataframe_with_metadata import DataFrameWithMetadata
 from wise_pizza.solve.find_alpha import find_alpha
-from wise_pizza.utils import clean_up_min_max
+from wise_pizza.utils import clean_up_min_max, fill_string_na
 from wise_pizza.make_matrix import sparse_dummy_matrix
 from wise_pizza.cluster import make_clusters
 from wise_pizza.preselect import HeuristicSelector
@@ -27,7 +28,8 @@ def _summary(obj) -> str:
             {
                 k: v
                 for k, v in s.items()
-                if k in ["segment", "total", "seg_size", "naive_avg", "impact"]
+                if k
+                in ["segment", "total", "seg_size", "naive_avg", "impact", "avg_impact"]
             }
             for s in obj.segments
         ],
@@ -98,7 +100,8 @@ class SliceFinder:
         )
 
         # do pre-filter recursively
-        for this_X, these_col_defs in basis_iter:
+        for i in basis_iter:
+            this_X, these_col_defs = i
             if this_X is not None:
                 X_out, col_defs_out = sel(this_X, these_col_defs)
 
@@ -535,6 +538,45 @@ class SliceFinder:
         out = SliceFinderPredictFacade(self, new_dim_df, segments)
         return out
 
+    @property
+    def nice_summary(self):
+
+        return nice_summary(
+            self.summary(),
+            self.total_name,
+            self.size_name,
+            self.average_name,
+            self.data_attrs if hasattr(self, "data_attrs") else None,
+        )
+
+    @property
+    def markdown_summary(self):
+        return markdown_summary(self.nice_summary)
+
+    def descriptive_prompt(
+        self, prompt_template: Optional["BasePromptTemplate"] = None
+    ):
+        if prompt_template is not None:
+            return prompt_template.format(
+                total_name=self.total_name,
+                size_name=self.size_name,
+                average_name=self.average_name,
+                summary=self.markdown_summary,
+            )
+        else:
+            return f"""
+You are a helpful research assistant. You are given a summary analysis of a dataset, 
+highlighting the key segments that drove the change in total volume. 
+The logic behind choosing those segments is the following: a segment's impact equals the segment's size
+({self.size_name}) multiplied by the difference between the segment' average ({self.average_name}) and 
+the average of the whole dataset, that describes the change in the total volume ({self.total_name}) due 
+to the segment's average deviation from the dataset's average. We look for the segments that have the
+larges absolute impact on the total volume. 
+
+Please summarize that data BRIEFLY in a few sentences. 
+Here is the summary:
+{self.markdown_summary}"""
+
 
 def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
     """
@@ -555,6 +597,73 @@ def make_dummy(segment_def: Dict[str, str], dim_df: pd.DataFrame) -> np.ndarray:
 
     assert np.abs(dummy).sum() > 0
     return dummy, Xi
+
+
+def nice_summary(
+    x: str,
+    total_name: str,
+    size_name: Optional[str] = None,
+    average_name: Optional[str] = None,
+    attrs: Optional[Dict[str, str]] = None,
+) -> Union[pd.DataFrame, Dict[str, pd.DataFrame]]:
+    x = json.loads(x)
+    for xx in x["segments"]:
+        xx.update(xx["segment"])
+
+    df = pd.DataFrame(x["segments"])
+
+    # These columns are pretty much self-explanatory, don't need descriptions
+
+    df = fill_string_na(df, "All")
+    df = df[[c for c in df.columns if c != "segment"] + ["segment"]]
+
+    if not average_name:
+        average_name = "average " + total_name.replace("total", "").replace(
+            "Total", ""
+        ).replace("TOTAL", "").replace("  ", " ")
+
+    df.rename(
+        columns={
+            "seg_size": size_name + " of segment",
+            "total": total_name + " in segment",
+            "impact": "Segment impact on overall total",
+            "avg_impact": f"Segment impact on overall {average_name}",
+            "naive_avg": average_name + " over segment",
+        },
+        inplace=True,
+    )
+
+    if attrs and "column_descriptions" in attrs:
+        column_desc = {
+            k: v for k, v in attrs["column_descriptions"].items() if k in df.columns
+        }
+
+        df = DataFrameWithMetadata(df, column_descriptions=column_desc)
+
+    out = df
+
+    # TODO: cast cluster definitions to dataframe too
+    if "relevant_clusters" in x and x["relevant_clusters"]:
+        out = {"summary": df, "clusters": x["relevant_clusters"]}
+
+    return out
+
+
+def markdown_summary(x: Union[dict, pd.DataFrame]):
+    if isinstance(x, pd.DataFrame):
+        x = x.drop(columns="segment")
+        return x.to_markdown(index=False)
+    elif isinstance(x, dict):
+        xx = x["summary"].drop(columns="segment")
+        table = xx.to_markdown(index=False)
+        if "clusters" in x and x["clusters"]:
+            clusters = x["clusters"]
+            table += "\n\nDefinitions of clusters: \n"
+            for k, v in clusters.items():
+                table += f"\n{k}: {v}"
+        return table
+    else:
+        raise ValueError("Invalid input, expected either a pd.DataFrame or a dict")
 
 
 class SlicerPair:

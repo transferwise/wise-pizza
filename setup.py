@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-with open('README.md') as f:
+with open("README.md") as f:
     long_description = f.read()
 
 setup(
@@ -8,14 +8,14 @@ setup(
     version="0.2.3",
     description="A library to find and visualise the most interesting slices in multidimensional data",
     long_description=long_description,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     author="Wise",
-    url='https://github.com/transferwise/wise-pizza',
+    url="https://github.com/transferwise/wise-pizza",
     classifiers=[
-        'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     install_requires=[
         "ipython",
@@ -29,27 +29,20 @@ setup(
         "tqdm",
         "cloudpickle",
         "pivottablejs",
-        "streamlit==1.28.0"
+        "streamlit>=1.28.0",
     ],
     extras_require={
-        "test": [
-            "flake8",
-            "pytest",
-            "pytest-cov"
-        ],
+        "test": ["flake8", "pytest", "pytest-cov"],
     },
     packages=find_packages(
-        include=[
-            'wise_pizza',
-            'wise_pizza.*'
-        ],
-        exclude=['tests*'],
+        include=["wise_pizza", "wise_pizza.*"],
+        exclude=["tests*"],
     ),
     entry_points={
-        'console_scripts': [
-            'run_wise_pizza_streamlit = wise_pizza.run_streamlit_app_entry_point:main',
+        "console_scripts": [
+            "run_wise_pizza_streamlit = wise_pizza.run_streamlit_app_entry_point:main",
         ],
     },
     include_package_data=True,
-    keywords='wise-pizza',
+    keywords="wise-pizza",
 )

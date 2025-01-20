@@ -318,3 +318,42 @@ def clean_up_min_max(min_nonzeros: int = None, max_nonzeros: int = None):
 
     assert min_nonzeros <= max_nonzeros
     return min_nonzeros, max_nonzeros
+
+
+def fill_string_na(df, fill_value=""):
+    """
+    Fill NA values in string-typed columns of a DataFrame with a specified value.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        The input DataFrame
+    fill_value : str, default=''
+        The value to use for filling NA values in string columns
+
+    Returns:
+    --------
+    pandas.DataFrame
+        A copy of the input DataFrame with NA values filled in string columns
+    """
+    # Create a copy of the DataFrame to avoid modifying the original
+    df_filled = df.copy()
+
+    # Get columns with string (object) or category dtype
+    string_columns = df_filled.select_dtypes(include=["object", "category"]).columns
+
+    # Fill NA values only in string columns
+    for col in string_columns:
+        df_filled[col] = df_filled[col].fillna(fill_value)
+
+    return df_filled
+
+
+# Example usage:
+# import pandas as pd
+# df = pd.DataFrame({
+#     'text': ['hello', None, 'world'],
+#     'numbers': [1, 2, None],
+#     'more_text': [None, 'test', 'data']
+# })
+# filled_df = fill_string_na(df, fill_value='MISSING')
